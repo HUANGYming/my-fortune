@@ -23,15 +23,16 @@ Python + FastAPI 后端，澳门日期驱动预计算，五项完整生成后持
 
 ## 安装与启动
 
-需要 Python 3.11+。运行时全部使用 Python，历法库 lunar-python 1.4.9 和天文库 astronomy-engine 2.1.19 已锁定版本。
+使用 uv 管理环境和依赖，默认 Python 3.12（`.python-version`），代码兼容 Python 3.11+。运行时全部使用 Python，历法库 lunar-python 1.4.9 和天文库 astronomy-engine 2.1.19 已锁定版本。
 
 ```sh
-python3 -m venv .venv
-.venv/bin/pip install -e '.[dev]'
+uv sync --locked
 cp .env.example .env
 # 修改 .env 的 Yellowbrick、Qwen 配置
-.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+uv run --locked uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
+
+`uv sync --locked` 使用已提交的 `uv.lock`，默认安装开发测试依赖。服务环境可使用 `uv sync --locked --no-dev`，并通过 `uv run --locked --no-dev uvicorn app.main:app` 启动。添加依赖使用 `uv add 包名`，添加测试工具使用 `uv add --dev 包名`，提交时同时包含 pyproject.toml 和 uv.lock。锁文件使用规则见 [uv 文档](https://docs.astral.sh/uv/concepts/projects/sync/)。
 
 OpenAPI 文档 `/docs`，规范 `/openapi.json`。Python 在进程内执行计算。旧版 NODE_BINARY 和 TAIBU_BASE_URL 配置已移除。
 
@@ -48,7 +49,7 @@ fortune_catalog 的 kind 使用 item 或 dining，entry_id 应唯一，active=tr
 现有企业调度器每天调用 CLI，可提前生成明天的 Fortune。
 
 ```sh
-.venv/bin/python -m app.precalculate --date 2026-11-20 --patron-id P001 --patron-id P002
+uv run --locked python -m app.precalculate --date 2026-11-20 --patron-id P001 --patron-id P002
 ```
 
 逐个客人执行，已成功结果跳过，单个客人失败继续处理后续客人。任一失败返回非零退出码，重跑补算。大批量名单读取、任务状态表、分布式队列尚待扩展。
@@ -74,7 +75,7 @@ app/llm.py 调用 /v1/chat/completions，每人三次调用，分别选择日运
 ## 测试与接入状态
 
 ```sh
-.venv/bin/pytest -q
+uv run --locked pytest -q
 ```
 
 测试覆盖实际太卜的四柱、三柱和一般黄历计算，规则筛选，以及采用模型/数据库替身的生成、发布和查询流程。20 组上游快照用于验证迁移一致性，测试无需安装 Node。
@@ -99,7 +100,7 @@ app/llm.py 调用 /v1/chat/completions，每人三次调用，分别选择日运
 先建立或升级表结构，再通过数据库客户端执行该 SQL，或填写 `.env` 后运行以下命令。
 
 ```sh
-.venv/bin/python -m app.seed
+uv run --locked python -m app.seed
 ```
 
 SQL 在一个事务内导入。重复运行会替换脚本中明确列出的 DEMO 数据及两天结果，其他 ID 和其他日期的结果保留。建议在团队测试库使用。
@@ -109,7 +110,7 @@ SQL 在一个事务内导入。重复运行会替换脚本中明确列出的 DEM
 例如查询 `GET /v1/patrons/DEMO-P001/fortunes/2026-11-19`，或运行以下命令测试真实 Qwen 生成及写回。
 
 ```sh
-.venv/bin/python -m app.precalculate --date 2026-11-20 --patron-id DEMO-P006
+uv run --locked python -m app.precalculate --date 2026-11-20 --patron-id DEMO-P006
 ```
 
 本仓库通过本地 SQLite 检查脚本重复导入、数据关联和模型结构，未据此认定 Yellowbrick 实例已完成导入。
@@ -120,7 +121,7 @@ SQL 在一个事务内导入。重复运行会替换脚本中明确列出的 DEM
 配置 `.env` 中 DATABASE_DSN、QWEN_BASE_URL、QWEN_MODEL，以及部署需要的 QWEN_API_KEY 后，可以载入虚构客人和目录，并通过真实 Qwen 生成推荐。
 
 ```sh
-.venv/bin/python -m app.seed --with-llm --date 2026-11-21
+uv run --locked python -m app.seed --with-llm --date 2026-11-21
 ```
 
 省略 --date 时使用澳门当天日期。该模式只导入 Patron 和目录，保留已保存的 Fortune，随后为 6 位测试客人补生成。若之前导入了 19、20 日的固定结果，请选择尚未生成的日期，或使用没有预存结果的 DEMO-P006 执行 precalculate。真实调用失败会返回非零退出码，并允许重跑补算。

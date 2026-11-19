@@ -19,7 +19,7 @@ My Fortune 为 Patron 按澳门日期预计算五项个人推荐，并持久化�
 
 ## 第一阶段 · 跑通内网链路
 
-1. 阅读 README.md、docs/RULES.md、docs/PYTHON_MIGRATION.md 和 .env.example，准备 Python 3.11+ 及依赖。内网环境可预先准备 wheel 包。运行时使用 Python 计算。
+1. 阅读 README.md、docs/RULES.md、docs/PYTHON_MIGRATION.md 和 .env.example，准备 uv 和 Python 3.12，使用 `uv sync --locked` 按 uv.lock 安装依赖。内网环境可预先准备对应平台的 Python、uv 缓存或 wheel 包。运行时使用 Python 计算。
 2. 创建本地 .env，配置 DATABASE_DSN、API_KEY、QWEN_BASE_URL、QWEN_MODEL 和需要的 QWEN_API_KEY。QWEN_BASE_URL 包含 /v1，客户端会追加 /chat/completions。数据库连接使用实际 TLS 参数。
 3. 确认 Yellowbrick 版本。核对 sql/001_schema.sql 的类型、长度及 schema，再在测试环境应用。已有旧版表的环境使用 002 增量脚本，勿再次执行 001。确认 repository.py 的 LOCK TABLE ... IN EXCLUSIVE MODE 在该版本有效，执行两个并发写入和回滚测试。若不支持，依据实际数据库能力替换发布并发控制。
 4. 将 fortune_patron_source 映射到现有 Patron 数据。确认生日为公历、出生时区、小时、分钟、性别字段含义，以及 preferences_json 格式。缺出生时区会得到 general；时辰未知时保留三柱。不要把所有人的出生时区设为澳门。
@@ -27,13 +27,13 @@ My Fortune 为 Patron 按澳门日期预计算五项个人推荐，并持久化�
 6. 用以下命令导入输入并通过真实模型生成，选用尚未保存的日期。
 
 ```sh
-.venv/bin/python -m app.seed --with-llm --date 2026-11-21
+uv run --locked python -m app.seed --with-llm --date 2026-11-21
 ```
 
 如之前已导入固定测试结果，可以仅用未预计算的客人测试真实生成。
 
 ```sh
-.venv/bin/python -m app.precalculate --date 2026-11-20 --patron-id DEMO-P006
+uv run --locked python -m app.precalculate --date 2026-11-20 --patron-id DEMO-P006
 ```
 
 固定 SQL 结果 model=fixture-no-llm，不能当作真实 Qwen 测试证明。重复执行会复用已有结果，选择新的日期可再次触发模型。
@@ -69,4 +69,4 @@ My Fortune 为 Patron 按澳门日期预计算五项个人推荐，并持久化�
 | REST 与鉴权 | app/main.py、app/models.py |
 | 批处理调度 | app/precalculate.py、app/seed.py |
 
-首次改动前运行 `.venv/bin/pytest -q`，后续根据改动执行相关测试和真实内网集成验证。发布前补充实际版本、运行命令与联调结果至本说明。
+首次改动前运行 `uv run --locked pytest -q`，后续根据改动执行相关测试和真实内网集成验证。发布前补充实际版本、运行命令与联调结果至本说明。
