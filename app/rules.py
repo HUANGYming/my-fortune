@@ -4,7 +4,7 @@ from typing import Literal
 from pydantic import Field
 from app.models import CatalogEntry, StrictModel
 
-RULES_VERSION = "daily-theme-v2"
+RULES_VERSION = "daily-theme-v3"
 Element = Literal["wood", "fire", "earth", "metal", "water"]
 ELEMENTS = ("wood", "fire", "earth", "metal", "water")
 STEM_ELEMENTS = dict(zip("甲乙丙丁戊己庚辛壬癸", (
@@ -48,33 +48,13 @@ def relation_score(candidate: str, branch: str) -> int:
 
 
 def rank_catalog(context: dict, catalog: list[CatalogEntry], kind: str) -> list[tuple[int, CatalogEntry]]:
-    preferences = context["profile"]["preferences"]
     element = context["daily_reading"]["element"]
     color = context["lucky_color"]["name"].lower()
-    excluded = set(preferences.get("excluded_catalog_ids", []))
-    allergies = set(preferences.get("allergens", []))
-    diets = set(preferences.get("dietary_requirements", []))
     candidates = []
     for entry in catalog:
         tags = entry.metadata
-        if entry.id in excluded:
-            continue
-        if kind == "dining":
-            # Unknown allergen/diet data cannot satisfy a declared restriction.
-            if allergies and ("allergens" not in tags or allergies.intersection(tags["allergens"])):
-                continue
-            if not diets.issubset(set(tags.get("dietary_options", []))):
-                continue
-            if tags.get("cuisine") in preferences.get("excluded_cuisines", []):
-                continue
-        if kind == "item" and set(tags.get("materials", [])).intersection(preferences.get("excluded_materials", [])):
-            continue
         score = 5 * (element in tags.get("elements", []))
         score += 2 * (color in [value.lower() for value in tags.get("colors", [])])
-        if kind == "dining":
-            score += 3 * (tags.get("cuisine") in preferences.get("preferred_cuisines", []))
-        else:
-            score += 3 * (tags.get("category") in preferences.get("preferred_item_categories", []))
         candidates.append((score, entry))
     if not candidates:
         raise ValueError(f"No eligible {kind} candidate")

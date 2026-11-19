@@ -7,7 +7,7 @@ from app.recommendations import lucky_color, lucky_number, lucky_zodiac
 def context():
     return {
         'date': '2026-11-20',
-        'profile': {'preferences': {}},
+        'profile': {},
         'daily_reading': {'element': 'metal'},
         'lucky_color': {'name': 'Gold'},
         'facts': {'coordinates': {'day_stem': '甲', 'day_branch': '寅',
@@ -28,33 +28,23 @@ def test_fields_share_element_and_avoid_daily_clash():
     assert lucky_zodiac.generate(data) == lucky_zodiac.generate(data)
 
 
-def test_dining_restrictions_precede_element_score():
-    data = context()
-    data['profile']['preferences'] = {'allergens': ['peanut'], 'dietary_requirements': ['vegetarian']}
-    catalog = [
-        CatalogEntry(id='unsafe', name='Unsafe', metadata={'elements': ['metal'], 'allergens': ['peanut']}),
-        CatalogEntry(id='unknown', name='Unknown'),
-        CatalogEntry(id='safe', name='Safe', metadata={'allergens': [], 'dietary_options': ['vegetarian']}),
-    ]
-    assert select_catalog(data, catalog, 'dining').id == 'safe'
+def test_catalog_ranking_uses_theme_and_color():
+    from app.rules import rank_catalog
+    entries = [CatalogEntry(id='a', name='Generic'),
+               CatalogEntry(id='b', name='Theme', metadata={'elements': ['metal']}),
+               CatalogEntry(id='c', name='Both', metadata={'elements': ['metal'], 'colors': ['gold']})]
+    assert [(score, entry.id) for score, entry in rank_catalog(context(), entries, 'item')] == [
+        (7, 'c'), (5, 'b'), (0, 'a')]
     with pytest.raises(ValueError):
-        select_catalog(data, catalog[:2], 'dining')
-
-
-def test_item_material_exclusion_precedes_theme_score():
-    data = context()
-    data['profile']['preferences'] = {'excluded_materials': ['nickel']}
-    entries = [CatalogEntry(id='bad', name='Earrings', metadata={'elements': ['metal'], 'materials': ['nickel']}),
-               CatalogEntry(id='good', name='Scarf')]
-    assert select_catalog(data, entries, 'item').id == 'good'
+        rank_catalog(context(), [], 'dining')
 
 
 def test_color_uses_theme_and_date_independently_of_legacy_preferences():
     data = context()
     expected = lucky_color.generate(data)
-    data['profile']['preferences']['preferred_colors'] = [
+    data['profile']['preferences'] = {'preferred_colors': [
         'White' if expected.name == 'Gold' else 'Gold'
-    ]
+    ]}
     assert lucky_color.generate(data) == expected
     del data['profile']
     assert lucky_color.generate(data) == expected

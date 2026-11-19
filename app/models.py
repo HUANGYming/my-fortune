@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from enum import Enum
 from typing import Any, Literal
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class StrictModel(BaseModel):
@@ -31,21 +31,6 @@ class Patron(StrictModel):
     birth_minute: int | None = Field(default=None, ge=0, le=59)
     birth_timezone: str | None = None
     longitude: float | None = Field(default=None, ge=-180, le=180)
-    preferences: dict[str, Any] = Field(default_factory=dict)
-
-    @field_validator("preferences")
-    @classmethod
-    def validate_preferences(cls, values: dict[str, Any]) -> dict[str, Any]:
-        list_fields = (
-            "excluded_catalog_ids", "allergens", "dietary_requirements",
-            "excluded_cuisines", "preferred_cuisines", "excluded_materials", "preferred_item_categories",
-        )
-        for field in list_fields:
-            if field in values:
-                value = values[field]
-                if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
-                    raise ValueError(f"{field} must be a list of strings")
-        return values
 
 
 
@@ -73,14 +58,3 @@ class Fortune(StrictModel):
     prompt_version: str
     rules_version: str = "legacy-v1"
     personalization: str = "unknown"
-
-
-class GenerationRequest(StrictModel):
-    fortune_date: date
-    patron_ids: list[str] = Field(min_length=1, max_length=100)
-
-
-class GenerationResult(StrictModel):
-    patron_id: str
-    status: str
-    error_code: str | None = None

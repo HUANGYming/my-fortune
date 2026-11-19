@@ -1,6 +1,6 @@
 # My Fortune 第一版推荐规则
 
-规则版本 `daily-theme-v2`，提示词版本 `fortune-v3`。
+规则版本 `daily-theme-v3`，提示词版本 `fortune-v3`。
 
 此版本是可执行的娱乐内容方法，分数和映射由本项目定义。它采用明确的干支关系及五行主题，不执行完整旺衰、格局、调候或喜用神推断。出生资料相同可以得到相同推荐；不追求人与人之间绝对唯一。
 
@@ -17,7 +17,7 @@ Python 实现参照 taibu-core 4.1.0 的公农历、节气、时区、四柱、�
 - 当日日干五行加 2 分。
 - 有个人日主时，其五行加 2 分，生扶它的上一五行加 1 分。
 - 得分大于零的五行成为候选，分数提供给 Qwen 参考。
-- Qwen 综合真实命盘、黄历、关系、偏好，在这些候选内选一个主题五行，返回 theme 和 basis。
+- Qwen 综合真实命盘、黄历、关系，在这些候选内选一个主题五行，返回 theme 和 basis。
 - 输出超出候选或格式错误则本次生成失败；不会用随机值补齐。
 
 这套分数用于构造主题候选，不代表日主强弱或喜用神。Qwen 每位客人调用三次，日运、物品及餐厅各一次，五项推荐共享同一主题。temperature=0 有助于稳定；最终结果以数据库中首次成功保存的记录为准。
@@ -52,7 +52,7 @@ Python 实现参照 taibu-core 4.1.0 的公农历、节气、时区、四柱、�
 | 金 | Gold、White |
 | 水 | Blue、Black |
 
-根据选定五行取得两个主题色，再按日期序数轮换。颜色只依赖日运五行和目标日期。色值在 lucky_color.py 中固定。旧数据中的 preferred_colors 会在构造模型输入时移除。
+根据选定五行取得两个主题色，再按日期序数轮换。颜色只依赖日运五行和目标日期。色值在 lucky_color.py 中固定。
 
 ## 今日物品与餐厅
 
@@ -79,23 +79,11 @@ Python 实现参照 taibu-core 4.1.0 的公农历、节气、时区、四柱、�
 }
 ```
 
-先排除 excluded_catalog_ids。物品再排除 excluded_materials；餐厅排除 excluded_cuisines，检查 allergens 和 dietary_requirements。客人声明过敏时，缺少 allergens 标签的餐厅不能入选，已知过敏原相交也不能入选。餐厅 dietary_options 必须覆盖客人全部饮食要求。这些判断依赖目录数据的真实性，代表目录层面的匹配。
+当前从 active=true 的目录中按主题五行匹配 +5、当日颜色匹配 +2 排序。按分数降序、目录 ID 升序，取前 20 个候选交给 Qwen。
 
-剩余候选按主题五行匹配 +5、当日颜色匹配 +2、个人偏好品类或菜系匹配 +3 排序。排序后取前 20 个合格候选交给 Qwen。模型结合个人日运、偏好和候选的标签选择一个 ID，并返回理由，选择可以与分数第一名不同。程序校验 ID 属于实际提供的候选，选择理由保存在 audit_json.catalog_decisions。主题匹配为零仍可推荐符合限制的其他候选。没有合格候选时整份 Fortune 失败，其他已发布记录保留。
+Qwen 结合个人日运、当日颜色和目录标签选择一个 ID，并返回理由。程序校验 ID 必须属于提供给模型的候选，理由保存在 audit_json.catalog_decisions。没有有效候选时该客人本次生成失败。
 
-支持的 preferences 字段均为字符串数组。标签采用小写英文。
-
-```json
-{
-  "preferred_item_categories": ["jewelry"],
-  "excluded_materials": ["nickel"],
-  "preferred_cuisines": ["sichuan"],
-  "excluded_cuisines": [],
-  "allergens": ["peanut"],
-  "dietary_requirements": ["vegetarian"],
-  "excluded_catalog_ids": []
-}
-```
+当前版本只使用出生资料、日运和目录标签。个人偏好、过敏及饮食限制等 preferences 逻辑已移除，已有目录里的附加标签作为目录描述保留。
 
 ## 发布与复现
 

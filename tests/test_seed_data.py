@@ -22,10 +22,9 @@ def test_seed_is_repeatable_preserves_other_ids_and_has_consistent_results():
         assert connection.execute("SELECT COUNT(*) FROM fortune_patron_source WHERE patron_id='EXISTING-PATRON'").fetchone()[0] == 1
         assert connection.execute("SELECT COUNT(*) FROM my_fortunes WHERE patron_id='DEMO-P006'").fetchone()[0] == 0
         patrons = {}
-        for row in connection.execute('SELECT patron_id, birth_date, birth_hour, gender, birth_minute, birth_timezone, longitude, preferences_json FROM fortune_patron_source WHERE patron_id != ?', ('EXISTING-PATRON',)):
+        for row in connection.execute('SELECT patron_id, birth_date, birth_hour, gender, birth_minute, birth_timezone, longitude FROM fortune_patron_source WHERE patron_id != ?', ('EXISTING-PATRON',)):
             patron = Patron(patron_id=row[0], birth_date=row[1], birth_hour=row[2], gender=row[3],
-                            birth_minute=row[4], birth_timezone=row[5], longitude=row[6],
-                            preferences=json.loads(row[7]))
+                            birth_minute=row[4], birth_timezone=row[5], longitude=row[6])
             patrons[patron.patron_id] = patron
         catalog = {}
         for row in connection.execute('SELECT kind, entry_id, name, metadata_json, active FROM fortune_catalog'):
@@ -44,11 +43,6 @@ def test_seed_is_repeatable_preserves_other_ids_and_has_consistent_results():
             for kind, selected in [('item', fortune.lucky_item), ('dining', fortune.lucky_dining)]:
                 saved_kind, entry, active = catalog[selected.id]
                 assert active and saved_kind == kind and selected == entry
-            preferences = patrons[patron_id].preferences
-            metadata = fortune.lucky_dining.metadata
-            assert not set(preferences.get('allergens', [])).intersection(metadata['allergens'])
-            assert set(preferences.get('dietary_requirements', [])).issubset(metadata['dietary_options'])
-            assert not set(preferences.get('excluded_materials', [])).intersection(fortune.lucky_item.metadata['materials'])
         assert modes == {'general', 'three_pillars', 'four_pillars'}
     finally:
         connection.close()

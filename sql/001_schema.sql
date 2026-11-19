@@ -6,8 +6,7 @@ CREATE TABLE fortune_patron_source (
     gender VARCHAR(16),
     birth_minute INTEGER,
     birth_timezone VARCHAR(64),
-    longitude DOUBLE PRECISION,
-    preferences_json VARCHAR(64000)
+    longitude DOUBLE PRECISION
 );
 
 CREATE TABLE fortune_catalog (

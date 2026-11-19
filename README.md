@@ -9,7 +9,7 @@ Python + FastAPI 后端，澳门日期驱动预计算，五项完整生成后持
 | 位置 | 职责 |
 | --- | --- |
 | app/main.py | REST 查询与 OpenAPI |
-| app/precalculate.py | 调度任务入口，显式指定日期与 Patron |
+| app/precalculate.py | 全表每日预计算入口，支持指定日期 |
 | app/service.py | 排盘、Qwen 日运、五项推荐、发布 |
 | app/recommendations/ | 生肖、数字、颜色、物品、餐厅五个独立文件 |
 | app/rules.py | 主题候选、关系评分、目录筛选与排名 |
@@ -19,7 +19,7 @@ Python + FastAPI 后端，澳门日期驱动预计算，五项完整生成后持
 | vendor/ | 上游算法口径、许可证和依赖许可说明 |
 | app/repository.py | Yellowbrick 数据映射与结果读写 |
 | sql/ | 初始表结构与已有数据库增量脚本 |
-| docs/RULES.md | 第一版推荐方法、标签和偏好契约 |
+| docs/RULES.md | 第一版推荐方法、目录标签 |
 
 ## 安装与启动
 
@@ -40,7 +40,7 @@ OpenAPI 文档 `/docs`，规范 `/openapi.json`。Python 在进程内执行计�
 
 新安装由数据库负责人执行 sql/001_schema.sql。已经使用旧版表结构时只应用 sql/002_birth_coordinates.sql。应用不自动修改数据库。fortune_patron_source 可以替换成现有 Patron 表的映射视图。
 
-新增出生字段 birth_minute、birth_timezone、longitude。其中 birth_timezone 是实际出生时区；不填时提供 general 黄历主题。出生日期当前按公历处理。未知出生小时可得到三柱结果。preferences_json 字段格式及目录标签见 docs/RULES.md。
+新增出生字段 birth_minute、birth_timezone、longitude。其中 birth_timezone 是实际出生时区；不填时提供 general 黄历主题。出生日期当前按公历处理。未知出生小时可得到三柱结果。目录标签见 docs/RULES.md。当前 Patron 只读取出生资料。
 
 fortune_catalog 的 kind 使用 item 或 dining，entry_id 应唯一，active=true 表示可推荐。物品、餐厅目录需要先填入有效数据。
 
@@ -49,10 +49,10 @@ fortune_catalog 的 kind 使用 item 或 dining，entry_id 应唯一，active=tr
 现有企业调度器每天调用 CLI，可提前生成明天的 Fortune。
 
 ```sh
-uv run --locked python -m app.precalculate --date 2026-11-20 --patron-id P001 --patron-id P002
+uv run --locked python -m app.precalculate --date 2026-11-20
 ```
 
-逐个客人执行，已成功结果跳过，单个客人失败继续处理后续客人。任一失败返回非零退出码，重跑补算。大批量名单读取、任务状态表、分布式队列尚待扩展。
+从 fortune_patron_source 分页读取全部不同的 Patron ID，默认每页 500 位，可用 --batch-size 调整。省略 --date 时使用澳门当天日期。逐位计算并持久化，同一天已成功结果复用，失败继续处理下一位。失败返回非零退出码，重跑补算缺失记录。任务状态表、分布式队列尚待扩展。
 
 真实太卜计算 → Qwen 日运主题判断 → 生肖/数字/颜色规则 → Qwen 物品及餐厅选择 → 完整保存。
 
@@ -70,7 +70,7 @@ payload 保存五项展示内容、模型/提示词/规则版本和 personalizat
 
 ## Qwen 接入
 
-app/llm.py 调用 /v1/chat/completions，每人三次调用，分别选择日运主题、物品、餐厅。物品和餐厅先由程序筛选，再把排名前 20 个合格候选交给 Qwen，模型可以综合偏好与日运选择其中任意一个。输出 ID 再次校验，理由保存在 audit_json.catalog_decisions。JSON 由 Pydantic 校验，超时和临时错误有限重试，非法结果使本次任务失败。Qwen 的 chat template / reasoning parser 需确保 content 返回纯 JSON。没有配置外部模型回退。
+app/llm.py 调用 /v1/chat/completions，每人三次调用，分别选择日运主题、物品、餐厅。物品和餐厅先由程序筛选，再把排名前 20 个合格候选交给 Qwen，模型可以综合日运与目录标签选择其中任意一个。输出 ID 再次校验，理由保存在 audit_json.catalog_decisions。JSON 由 Pydantic 校验，超时和临时错误有限重试，非法结果使本次任务失败。Qwen 的 chat template / reasoning parser 需确保 content 返回纯 JSON。没有配置外部模型回退。
 
 ## 测试与接入状态
 
@@ -90,12 +90,12 @@ uv run --locked pytest -q
 
 | Patron | 测试场景 |
 | --- | --- |
-| DEMO-P001 | 完整出生资料、澳门经度校正、首饰和川菜偏好 |
-| DEMO-P002 | 素食及花生过敏 |
-| DEMO-P003 | 出生时辰未知、镍材质排除 |
+| DEMO-P001 | 完整出生资料、澳门经度校正 |
+| DEMO-P002 | 完整香港出生资料 |
+| DEMO-P003 | 出生时辰未知 |
 | DEMO-P004 | 出生时区缺失，使用 general 黄历主题 |
-| DEMO-P005 | 出生资料缺失、排除指定物品 |
-| DEMO-P006 | 伦敦出生时区、纯素及贝类过敏，特意未预存结果，用于测试 404 和补生成 |
+| DEMO-P005 | 出生资料缺失 |
+| DEMO-P006 | 伦敦出生时区，特意未预存结果，用于测试 404 和补生成 |
 
 先建立或升级表结构，再通过数据库客户端执行该 SQL，或填写 `.env` 后运行以下命令。
 
@@ -110,7 +110,7 @@ SQL 在一个事务内导入。重复运行会替换脚本中明确列出的 DEM
 例如查询 `GET /v1/patrons/DEMO-P001/fortunes/2026-11-19`，或运行以下命令测试真实 Qwen 生成及写回。
 
 ```sh
-uv run --locked python -m app.precalculate --date 2026-11-20 --patron-id DEMO-P006
+uv run --locked python -m app.precalculate --date 2026-11-20
 ```
 
 本仓库通过本地 SQLite 检查脚本重复导入、数据关联和模型结构，未据此认定 Yellowbrick 实例已完成导入。
@@ -124,7 +124,10 @@ uv run --locked python -m app.precalculate --date 2026-11-20 --patron-id DEMO-P0
 uv run --locked python -m app.seed --with-llm --date 2026-11-21
 ```
 
-省略 --date 时使用澳门当天日期。该模式只导入 Patron 和目录，保留已保存的 Fortune，随后为 6 位测试客人补生成。若之前导入了 19、20 日的固定结果，请选择尚未生成的日期，或使用没有预存结果的 DEMO-P006 执行 precalculate。真实调用失败会返回非零退出码，并允许重跑补算。
+省略 --date 时使用澳门当天日期。该模式只导入 Patron 和目录，保留已保存的 Fortune，随后对 fortune_patron_source 全表执行预计算。若之前导入了 19、20 日的固定结果，请选择尚未生成的日期，或执行全表 precalculate，补算尚未保存的客人。真实调用失败会返回非零退出码，并允许重跑补算。
 
 
 算法范围和验证方法见 [Python 迁移说明](docs/PYTHON_MIGRATION.md)。SQL 固定样例保留原引擎标记，新计算使用 my-fortune-python 1.0.0。
+
+
+已有数据库中的 preferences_json 列可以保留，当前代码不再读取。新建测试表和测试 Patron 输入已移除该字段。每天的任务为每位客人创建当天记录，同日期重跑复用已有成功结果。

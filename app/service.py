@@ -26,7 +26,6 @@ class FortuneService:
         facts = await self.taibu.context(patron, target_date)
         # Patron ID is a storage key, not an input to the model.
         profile = patron.model_dump(mode="json", exclude={"patron_id"})
-        profile["preferences"].pop("preferred_colors", None)
         context = {"date": target_date.isoformat(), "profile": profile, "facts": facts}
         context["theme_candidates"] = theme_candidates(facts)
         reading = await self.llm.generate(

@@ -12,15 +12,38 @@ class Repository:
     def get_patron(self, patron_id: str) -> Patron | None:
         with connection(self.settings) as conn, conn.cursor() as cursor:
             cursor.execute(
-                "SELECT patron_id, birth_date, birth_hour, gender, preferences_json, birth_minute, birth_timezone, longitude "
+                "SELECT patron_id, birth_date, birth_hour, gender, birth_minute, birth_timezone, longitude "
                 "FROM fortune_patron_source WHERE patron_id = %s", (patron_id,),
             )
             row = cursor.fetchone()
         if row is None:
             return None
         return Patron(patron_id=row[0], birth_date=row[1], birth_hour=row[2],
-                      gender=row[3], preferences=json.loads(row[4] or "{}"),
-                      birth_minute=row[5], birth_timezone=row[6], longitude=row[7])
+                      gender=row[3], birth_minute=row[4], birth_timezone=row[5], longitude=row[6])
+
+    def iter_patron_ids(self, batch_size: int = 500):
+        """Read every distinct Patron ID using bounded keyset pages."""
+        if batch_size < 1:
+            raise ValueError("batch_size must be positive")
+        after = None
+        while True:
+            with connection(self.settings) as conn, conn.cursor() as cursor:
+                if after is None:
+                    cursor.execute(
+                        "SELECT DISTINCT patron_id FROM fortune_patron_source "
+                        "ORDER BY patron_id LIMIT %s", (batch_size,),
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT DISTINCT patron_id FROM fortune_patron_source "
+                        "WHERE patron_id > %s ORDER BY patron_id LIMIT %s", (after, batch_size),
+                    )
+                rows = cursor.fetchall()
+            if not rows:
+                return
+            for row in rows:
+                yield row[0]
+            after = rows[-1][0]
 
     def get_fortune(self, patron_id: str, target_date: date) -> Fortune | None:
         with connection(self.settings) as conn, conn.cursor() as cursor:

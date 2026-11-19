@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 def context():
-    return {'date': '2026-11-19', 'profile': {'preferences': {'allergens': ['peanut']}},
+    return {'date': '2026-11-19', 'profile': {},
             'daily_reading': {'element': 'metal', 'theme': 'Quiet elegance'},
             'lucky_color': {'name': 'Gold'}}
 
@@ -26,15 +26,15 @@ def test_item_llm_can_select_lower_scored_candidate_and_records_reason():
     assert len(llm.generate.call_args.args[1]['candidates']) == 2
 
 
-def test_dining_model_cannot_select_excluded_candidate():
+def test_dining_model_cannot_select_unknown_candidate():
     data = context()
     entries = [CatalogEntry(id='unsafe', name='Peanut Kitchen', metadata={'allergens': ['peanut']}),
                CatalogEntry(id='safe', name='Garden', metadata={'allergens': []})]
     llm = AsyncMock()
-    llm.generate.return_value = lucky_dining.Selection(entry_id='unsafe', reason='Incorrect choice')
+    llm.generate.return_value = lucky_dining.Selection(entry_id='unknown', reason='Incorrect choice')
     with pytest.raises(ValueError, match='outside the eligible candidates'):
         asyncio.run(lucky_dining.generate(llm, data, entries))
-    assert [entry['id'] for entry in llm.generate.call_args.args[1]['candidates']] == ['safe']
+    assert [entry['id'] for entry in llm.generate.call_args.args[1]['candidates']] == ['safe', 'unsafe']
     assert 'catalog_decisions' not in data
 
 

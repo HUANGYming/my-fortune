@@ -9,13 +9,13 @@ DELETE FROM my_fortunes WHERE patron_id IN ('DEMO-P001', 'DEMO-P002', 'DEMO-P003
 DELETE FROM fortune_patron_source WHERE patron_id IN ('DEMO-P001', 'DEMO-P002', 'DEMO-P003', 'DEMO-P004', 'DEMO-P005', 'DEMO-P006');
 DELETE FROM fortune_catalog WHERE entry_id IN ('DEMO-I001', 'DEMO-I002', 'DEMO-I003', 'DEMO-I004', 'DEMO-I005', 'DEMO-I006', 'DEMO-D001', 'DEMO-D002', 'DEMO-D003', 'DEMO-D004', 'DEMO-D005', 'DEMO-D006');
 
-INSERT INTO fortune_patron_source (patron_id, birth_date, birth_hour, gender, birth_minute, birth_timezone, longitude, preferences_json) VALUES
-    ('DEMO-P001', '1990-01-15', 9, 'male', 30, 'Asia/Macau', 113.5439, '{"preferred_colors": ["Gold"], "preferred_item_categories": ["jewelry"], "preferred_cuisines": ["sichuan"]}'),
-    ('DEMO-P002', '1995-06-20', 14, 'female', 15, 'Asia/Hong_Kong', NULL, '{"dietary_requirements": ["vegetarian"], "allergens": ["peanut"], "preferred_colors": ["Green"]}'),
-    ('DEMO-P003', '1988-03-12', NULL, 'female', NULL, 'Asia/Shanghai', NULL, '{"excluded_materials": ["nickel"], "preferred_cuisines": ["cantonese"]}'),
-    ('DEMO-P004', '1985-09-08', 10, 'male', NULL, NULL, NULL, '{"preferred_cuisines": ["japanese"], "excluded_cuisines": ["sichuan"]}'),
-    ('DEMO-P005', NULL, NULL, NULL, NULL, NULL, NULL, '{"excluded_catalog_ids": ["DEMO-I001"], "preferred_item_categories": ["accessory"]}'),
-    ('DEMO-P006', '1992-08-03', 16, 'male', 45, 'Europe/London', NULL, '{"allergens": ["shellfish"], "dietary_requirements": ["vegan"]}');
+INSERT INTO fortune_patron_source (patron_id,birth_date,birth_hour,gender,birth_minute,birth_timezone,longitude) VALUES
+    ('DEMO-P001', '1990-01-15', 9, 'male', 30, 'Asia/Macau', 113.5439),
+    ('DEMO-P002', '1995-06-20', 14, 'female', 15, 'Asia/Hong_Kong', NULL),
+    ('DEMO-P003', '1988-03-12', NULL, 'female', NULL, 'Asia/Shanghai', NULL),
+    ('DEMO-P004', '1985-09-08', 10, 'male', NULL, NULL, NULL),
+    ('DEMO-P005', NULL, NULL, NULL, NULL, NULL, NULL),
+    ('DEMO-P006', '1992-08-03', 16, 'male', 45, 'Europe/London', NULL);
 
 INSERT INTO fortune_catalog (kind, entry_id, name, metadata_json, active) VALUES
     ('item', 'DEMO-I001', 'Gold Earrings', '{"demo": true, "elements": ["metal"], "colors": ["gold"], "materials": ["gold"], "category": "jewelry"}', TRUE),

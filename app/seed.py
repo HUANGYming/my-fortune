@@ -8,8 +8,6 @@ import psycopg2
 from app.config import get_settings
 from app.precalculate import run
 
-DEMO_PATRONS = [f"DEMO-P{number:03}" for number in range(1, 7)]
-
 
 def seed_sql(with_llm: bool) -> str:
     script = Path(__file__).resolve().parent.parent / "sql" / "003_test_data.sql"
@@ -40,8 +38,8 @@ def main():
         connection.close()
     if args.with_llm:
         target_date = args.date or datetime.now(ZoneInfo("Asia/Macau")).date()
-        failures = asyncio.run(run(target_date, DEMO_PATRONS))
-        print(f"Demo generation finished for {target_date}. Failures: {failures}; saved results are reused.")
+        failures = asyncio.run(run(target_date))
+        print(f"Full-table generation finished for {target_date}. Failures: {failures}; saved results are reused.")
         raise SystemExit(1 if failures else 0)
     print("Loaded 6 demo Patrons, 12 catalog entries and 10 fixture fortunes.")
 

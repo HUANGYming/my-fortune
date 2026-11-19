@@ -63,10 +63,16 @@ def test_generation_persists_all_five_and_rerun_skips_model():
 def test_invalid_final_selection_never_publishes_partial_fortune():
     repo = MemoryRepository()
     generator = service(repo)
+    original = generator.llm.generate
+
+    async def select_invalid_dining(task, context, schema):
+        if "Choose one dining" in task:
+            return schema(entry_id="unknown", reason="Invalid test selection")
+        return await original(task, context, schema)
+
+    generator.llm.generate = select_invalid_dining
     with pytest.raises(ValueError):
-        asyncio.run(generator.generate(Patron(
-            patron_id='P001', preferences={'excluded_catalog_ids': ['dining']}
-        ), date(2026, 11, 20)))
+        asyncio.run(generator.generate(Patron(patron_id='P001'), date(2026, 11, 20)))
     assert repo.writes == 0
 
 
@@ -92,7 +98,7 @@ def test_actual_taibu_through_generation_to_persisted_query():
                     birth_timezone='Asia/Shanghai', gender='male')
     result = asyncio.run(generator.generate(patron, date(2026, 11, 20)))
     assert result.personalization == 'four_pillars'
-    assert result.rules_version == 'daily-theme-v2'
+    assert result.rules_version == 'daily-theme-v3'
     assert result.lucky_number in (5, 0)
     assert repo.writes == 1
     app.dependency_overrides[authorize] = lambda: None
