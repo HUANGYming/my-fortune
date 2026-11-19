@@ -36,7 +36,7 @@ class FakeLLM:
 
 def service(repo):
     settings = Settings(database_dsn='unused', api_key='test', qwen_base_url='http://qwen/v1',
-                        qwen_model='Qwen', taibu_base_url='http://taibu')
+                        qwen_model='Qwen')
     instance = FortuneService(settings, repo)
     instance.llm = FakeLLM()
     instance.taibu.context = AsyncMock(return_value={'almanac': {'day': 'example'}, 'personalization': 'general',
@@ -87,7 +87,6 @@ def test_actual_taibu_through_generation_to_persisted_query():
 
     repo = MemoryRepository()
     generator = service(repo)
-    generator.settings.taibu_base_url = None
     generator.taibu = TaibuClient(generator.settings)
     patron = Patron(patron_id='P001', birth_date=date(1990, 1, 15), birth_hour=9,
                     birth_timezone='Asia/Shanghai', gender='male')

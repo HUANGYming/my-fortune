@@ -14,29 +14,26 @@ Python + FastAPI 后端，澳门日期驱动预计算，五项完整生成后持
 | app/recommendations/ | 生肖、数字、颜色、物品、餐厅五个独立文件 |
 | app/rules.py | 主题候选、关系评分、目录筛选与排名 |
 | app/llm.py | on-premises Qwen / vLLM 客户端 |
-| app/taibu.py | 本地子进程调用，支持可选 HTTP 桥接 |
-| bridge/context.mjs | 实际调用太卜算法的 JSON 适配器 |
-| vendor/taibu-core/ | 固定版本的上游 MIT 核心源码及许可证 |
+| app/taibu.py | Python 计算入口，保留现有调用契约 |
+| app/calculations/ | 历法、真太阳时、四柱、黄历、岁运和干支关系的 Python 实现 |
+| vendor/ | 上游算法口径、许可证和依赖许可说明 |
 | app/repository.py | Yellowbrick 数据映射与结果读写 |
 | sql/ | 初始表结构与已有数据库增量脚本 |
 | docs/RULES.md | 第一版推荐方法、标签和偏好契约 |
 
 ## 安装与启动
 
-需要 Python 3.11+、npm。桥接目录的安装步骤下载项目内独立 Node 22 运行时，不改全局 Node。受限网络部署可自行安装 Node 22+，通过 NODE_BINARY 指定。
+需要 Python 3.11+。运行时全部使用 Python，历法库 lunar-python 1.4.9 和天文库 astronomy-engine 2.1.19 已锁定版本。
 
 ```sh
 python3 -m venv .venv
 .venv/bin/pip install -e '.[dev]'
-npm ci --prefix vendor/taibu-core
-npm run --prefix vendor/taibu-core build
-npm ci --prefix bridge
 cp .env.example .env
 # 修改 .env 的 Yellowbrick、Qwen 配置
 .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-OpenAPI 文档 `/docs`，规范 `/openapi.json`。默认本地调用太卜，无需额外 HTTP 服务。可选 TAIBU_BASE_URL 使用同一个请求/返回契约，见 bridge/context.mjs。
+OpenAPI 文档 `/docs`，规范 `/openapi.json`。Python 在进程内执行计算。旧版 NODE_BINARY 和 TAIBU_BASE_URL 配置已移除。
 
 ## 数据库准备
 
@@ -80,7 +77,7 @@ app/llm.py 调用 /v1/chat/completions，每人三次调用，分别选择日运
 .venv/bin/pytest -q
 ```
 
-测试覆盖实际太卜的四柱、三柱和一般黄历计算，规则筛选，以及采用模型/数据库替身的生成、发布和查询流程。本机已安装并构建上游核心。
+测试覆盖实际太卜的四柱、三柱和一般黄历计算，规则筛选，以及采用模型/数据库替身的生成、发布和查询流程。20 组上游快照用于验证迁移一致性，测试无需安装 Node。
 
 真实 Qwen 和 Yellowbrick 尚未提供地址凭据，需联调。规则属于第一版娱乐内容配置，正式命理方法及运营目录由团队继续完善。
 
@@ -127,3 +124,6 @@ SQL 在一个事务内导入。重复运行会替换脚本中明确列出的 DEM
 ```
 
 省略 --date 时使用澳门当天日期。该模式只导入 Patron 和目录，保留已保存的 Fortune，随后为 6 位测试客人补生成。若之前导入了 19、20 日的固定结果，请选择尚未生成的日期，或使用没有预存结果的 DEMO-P006 执行 precalculate。真实调用失败会返回非零退出码，并允许重跑补算。
+
+
+算法范围和验证方法见 [Python 迁移说明](docs/PYTHON_MIGRATION.md)。SQL 固定样例保留原引擎标记，新计算使用 my-fortune-python 1.0.0。

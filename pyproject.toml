@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "my-fortune"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1", "httpx>=0.27,<1", "pydantic-settings>=2.5,<3", "psycopg2-binary>=2.9,<3"]
+dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1", "httpx>=0.27,<1", "pydantic-settings>=2.5,<3", "psycopg2-binary>=2.9,<3", "lunar-python==1.4.9", "astronomy-engine==2.1.19"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10"]

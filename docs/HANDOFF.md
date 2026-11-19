@@ -8,18 +8,18 @@ My Fortune 为 Patron 按澳门日期预计算五项个人推荐，并持久化�
 
 ## 当前完成情况
 
-- vendored taibu-core 4.1.0，来源 commit 4b2a51a，MIT 许可证及算法说明已保留。
-- 本地 Node 桥接可计算本命盘、黄历及岁运关系，Python 主服务已经调用真实算法。
+- 计算模块已迁移为 Python，参照 taibu-core 4.1.0 / 4b2a51a 的规则，许可证及算法口径已保留。
+- app/calculations 在进程内计算本命盘、黄历及岁运关系，使用 lunar-python 和 Python astronomy-engine。
 - 提供预计算 CLI、Yellowbrick 访问层、事务发布、REST 查询和 OpenAPI。
 - 提供 6 位虚构 Patron、12 项目录及两天 10 份预存结果。
 - 提供 --with-llm 测试数据入口。没有在仓库保存真实凭据、Patron 或餐厅记录。
-- 当前 14 项本地测试通过，其中真实太卜计算已执行，Qwen 和数据库调用采用测试替身。
+- 当前 37 项本地测试通过，其中真实太卜计算已执行，Qwen 和数据库调用采用测试替身。
 
-真实 Yellowbrick 和 Qwen 地址尚未提供，未做生产环境联调或部署。仓库包含完整核心包以保留上游构建关系，My Fortune 当前只使用八字、黄历及干支关系。
+真实 Yellowbrick 和 Qwen 地址尚未提供，未做生产环境联调或部署。My Fortune 当前实现业务需要的八字、黄历及干支关系，范围见 docs/PYTHON_MIGRATION.md。
 
 ## 第一阶段 · 跑通内网链路
 
-1. 阅读 README.md、docs/RULES.md、.env.example，确认运行环境的 Python、Node 22+ 和包源。安装步骤见 README；不能联网时在可联网环境准备 Python wheel、npm 缓存/依赖，再带入内网。NODE_BINARY 可以指向已有 Node 22+，此时无需安装 bridge 中的 Node 运行时。
+1. 阅读 README.md、docs/RULES.md、docs/PYTHON_MIGRATION.md 和 .env.example，准备 Python 3.11+ 及依赖。内网环境可预先准备 wheel 包。运行时使用 Python 计算。
 2. 创建本地 .env，配置 DATABASE_DSN、API_KEY、QWEN_BASE_URL、QWEN_MODEL 和需要的 QWEN_API_KEY。QWEN_BASE_URL 包含 /v1，客户端会追加 /chat/completions。数据库连接使用实际 TLS 参数。
 3. 确认 Yellowbrick 版本。核对 sql/001_schema.sql 的类型、长度及 schema，再在测试环境应用。已有旧版表的环境使用 002 增量脚本，勿再次执行 001。确认 repository.py 的 LOCK TABLE ... IN EXCLUSIVE MODE 在该版本有效，执行两个并发写入和回滚测试。若不支持，依据实际数据库能力替换发布并发控制。
 4. 将 fortune_patron_source 映射到现有 Patron 数据。确认生日为公历、出生时区、小时、分钟、性别字段含义，以及 preferences_json 格式。缺出生时区会得到 general；时辰未知时保留三柱。不要把所有人的出生时区设为澳门。
@@ -62,7 +62,7 @@ My Fortune 为 Patron 按澳门日期预计算五项个人推荐，并持久化�
 | 工作 | 主要文件 |
 | --- | --- |
 | Patron / Yellowbrick | app/repository.py、app/database.py、sql/ |
-| 太卜与日期规则 | app/taibu.py、bridge/context.mjs、vendor/UPSTREAM.md |
+| 太卜与日期规则 | app/taibu.py、app/calculations/、vendor/UPSTREAM.md |
 | 模型连接 | app/llm.py、app/config.py |
 | 日运与公共规则 | app/service.py、app/rules.py、docs/RULES.md |
 | 五项推荐 | app/recommendations/ 下各自文件 |
