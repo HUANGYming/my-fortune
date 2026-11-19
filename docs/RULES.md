@@ -1,6 +1,6 @@
 # My Fortune 第一版推荐规则
 
-规则版本 `daily-theme-v1`，提示词版本 `fortune-v3`。
+规则版本 `daily-theme-v2`，提示词版本 `fortune-v3`。
 
 此版本是可执行的娱乐内容方法，分数和映射由本项目定义。它采用明确的干支关系及五行主题，不执行完整旺衰、格局、调候或喜用神推断。出生资料相同可以得到相同推荐；不追求人与人之间绝对唯一。
 
@@ -52,7 +52,7 @@ Python 实现参照 taibu-core 4.1.0 的公农历、节气、时区、四柱、�
 | 金 | Gold、White |
 | 水 | Blue、Black |
 
-客人 preferred_colors 命中主题色时优先使用，否则按日期序数轮换。色值在 lucky_color.py 中固定。
+根据选定五行取得两个主题色，再按日期序数轮换。颜色只依赖日运五行和目标日期。色值在 lucky_color.py 中固定。旧数据中的 preferred_colors 会在构造模型输入时移除。
 
 ## 今日物品与餐厅
 
@@ -83,11 +83,10 @@ Python 实现参照 taibu-core 4.1.0 的公农历、节气、时区、四柱、�
 
 剩余候选按主题五行匹配 +5、当日颜色匹配 +2、个人偏好品类或菜系匹配 +3 排序。排序后取前 20 个合格候选交给 Qwen。模型结合个人日运、偏好和候选的标签选择一个 ID，并返回理由，选择可以与分数第一名不同。程序校验 ID 属于实际提供的候选，选择理由保存在 audit_json.catalog_decisions。主题匹配为零仍可推荐符合限制的其他候选。没有合格候选时整份 Fortune 失败，其他已发布记录保留。
 
-支持的 preferences 字段均为字符串数组。标签采用小写英文，preferred_colors 可以使用颜色名称。
+支持的 preferences 字段均为字符串数组。标签采用小写英文。
 
 ```json
 {
-  "preferred_colors": ["Gold"],
   "preferred_item_categories": ["jewelry"],
   "excluded_materials": ["nickel"],
   "preferred_cuisines": ["sichuan"],

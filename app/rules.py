@@ -4,7 +4,7 @@ from typing import Literal
 from pydantic import Field
 from app.models import CatalogEntry, StrictModel
 
-RULES_VERSION = "daily-theme-v1"
+RULES_VERSION = "daily-theme-v2"
 Element = Literal["wood", "fire", "earth", "metal", "water"]
 ELEMENTS = ("wood", "fire", "earth", "metal", "water")
 STEM_ELEMENTS = dict(zip("甲乙丙丁戊己庚辛壬癸", (

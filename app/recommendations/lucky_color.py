@@ -12,8 +12,5 @@ PALETTES = {
 
 def generate(context: dict) -> Color:
     palette = PALETTES[context["daily_reading"]["element"]]
-    preferred = context["profile"]["preferences"].get("preferred_colors", [])
-    matches = [color for color in palette if color[0].lower() in [value.lower() for value in preferred]]
-    choices = matches or palette
-    name, hex_value = choices[date.fromisoformat(context["date"]).toordinal() % len(choices)]
+    name, hex_value = palette[date.fromisoformat(context["date"]).toordinal() % len(palette)]
     return Color(name=name, hex=hex_value)

@@ -37,7 +37,7 @@ class Patron(StrictModel):
     @classmethod
     def validate_preferences(cls, values: dict[str, Any]) -> dict[str, Any]:
         list_fields = (
-            "preferred_colors", "excluded_catalog_ids", "allergens", "dietary_requirements",
+            "excluded_catalog_ids", "allergens", "dietary_requirements",
             "excluded_cuisines", "preferred_cuisines", "excluded_materials", "preferred_item_categories",
         )
         for field in list_fields:

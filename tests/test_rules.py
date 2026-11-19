@@ -47,3 +47,14 @@ def test_item_material_exclusion_precedes_theme_score():
     entries = [CatalogEntry(id='bad', name='Earrings', metadata={'elements': ['metal'], 'materials': ['nickel']}),
                CatalogEntry(id='good', name='Scarf')]
     assert select_catalog(data, entries, 'item').id == 'good'
+
+
+def test_color_uses_theme_and_date_independently_of_legacy_preferences():
+    data = context()
+    expected = lucky_color.generate(data)
+    data['profile']['preferences']['preferred_colors'] = [
+        'White' if expected.name == 'Gold' else 'Gold'
+    ]
+    assert lucky_color.generate(data) == expected
+    del data['profile']
+    assert lucky_color.generate(data) == expected
