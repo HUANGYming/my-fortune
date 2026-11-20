@@ -53,11 +53,18 @@ class FortuneService:
         color = lucky_color.generate(context)
         context["lucky_color"] = color.model_dump()
 
-        # 第 8 步：物品与餐厅模块分别将评分后的前 20 个候选交给 Qwen 选择。
-        # 各模块校验返回的目录 ID 并记录理由；餐厅还会收到已选择的物品。
-        item = await lucky_item.generate(self.llm, context, item_catalog)
-        context["selected_item"] = item.model_dump()
-        dining = await lucky_dining.generate(self.llm, context, dining_catalog)
+        # 第 8 步：物品、餐厅各自使用同一份命盘、日运五行和颜色，独立并发调用 Qwen。
+        # 独立上下文保存各自的选择理由；共享 QwenClient 将在途请求总数限制为 16。
+        item_context = {**context, "catalog_decisions": {}}
+        dining_context = {**context, "catalog_decisions": {}}
+        async with asyncio.TaskGroup() as tasks:
+            item_task = tasks.create_task(lucky_item.generate(self.llm, item_context, item_catalog))
+            dining_task = tasks.create_task(lucky_dining.generate(self.llm, dining_context, dining_catalog))
+        item = item_task.result()
+        dining = dining_task.result()
+        context["catalog_decisions"] = {
+            **item_context["catalog_decisions"], **dining_context["catalog_decisions"],
+        }
 
         # 第 9 步：五项全部成功后组装 Fortune，保存展示结果、版本及计算审计依据。
         # Repository.save 在一个数据库事务内发布，前面任何一步失败都不会写入部分结果。

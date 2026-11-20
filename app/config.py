@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     qwen_model: str
     qwen_api_key: SecretStr = SecretStr("")
     request_timeout: float = 90
-    prompt_version: str = "fortune-v4"
+    prompt_version: str = "fortune-v5"
 
 
 @lru_cache

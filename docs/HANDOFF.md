@@ -13,7 +13,7 @@ My Fortune 为 Patron 按澳门日期预计算五项个人推荐，并持久化�
 - 提供预计算 CLI、Yellowbrick 访问层、事务发布、REST 查询和 OpenAPI。
 - 提供 6 位虚构 Patron、12 项目录及两天 10 份预存结果。
 - 提供 --with-llm 测试数据入口。没有在仓库保存真实凭据、Patron 或餐厅记录。
-- 当前 42 项本地测试通过，其中真实太卜计算已执行，Qwen 和数据库调用采用测试替身。
+- 当前 43 项本地测试通过，其中真实太卜计算已执行，Qwen 和数据库调用采用测试替身。
 
 真实 Yellowbrick 和 Qwen 地址尚未提供，未做生产环境联调或部署。My Fortune 当前实现业务需要的八字、黄历及干支关系，范围见 docs/PYTHON_MIGRATION.md。
 

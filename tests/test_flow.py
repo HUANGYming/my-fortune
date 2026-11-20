@@ -71,7 +71,7 @@ def test_invalid_final_selection_never_publishes_partial_fortune():
         return await original(task, context, schema)
 
     generator.llm.generate = select_invalid_dining
-    with pytest.raises(ValueError):
+    with pytest.raises(ExceptionGroup):
         asyncio.run(generator.generate(Patron(patron_id='P001'), date(2026, 11, 20)))
     assert repo.writes == 0
 
@@ -124,3 +124,27 @@ def test_only_item_and_dining_call_qwen():
     assert 'Choose one dining' in calls[1].args[0]
     assert calls[0].args[1]['daily_reading'] == {'element':'wood'}
     assert repo.audit['reading'] == {'element':'wood'}
+
+
+def test_item_and_dining_run_independently_and_concurrently():
+    async def exercise():
+        repo = MemoryRepository()
+        generator = service(repo)
+        started = set()
+        both_started = asyncio.Event()
+        original = generator.llm.generate
+
+        async def generate(task, context, schema):
+            assert 'selected_item' not in context
+            started.add('item' if 'Choose one item' in task else 'dining')
+            if len(started) == 2:
+                both_started.set()
+            await asyncio.wait_for(both_started.wait(), timeout=5)
+            return await original(task, context, schema)
+
+        generator.llm.generate = generate
+        await generator.generate(Patron(patron_id='P001'), date(2026,11,20))
+        assert set(repo.audit['catalog_decisions']) == {'item','dining'}
+        assert repo.writes == 1
+
+    asyncio.run(exercise())

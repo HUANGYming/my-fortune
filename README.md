@@ -1,6 +1,6 @@
 # My Fortune
 
-团队接手与下一步实施顺序见 [On-premise agent 接手说明](docs/HANDOFF.md)。五项推荐流程见 [英文演示文稿](docs/presentations/My_Fortune_Rule_Based_Pipelines_v2.pptx)。
+团队接手与下一步实施顺序见 [On-premise agent 接手说明](docs/HANDOFF.md)。五项推荐流程见 [英文演示文稿](docs/presentations/My_Fortune_Detailed_Pipelines_v3.pptx)。
 
 Python + FastAPI 后端，澳门日期驱动预计算，五项完整生成后持久化至 Yellowbrick，REST API 查询已有结果。
 
@@ -135,6 +135,6 @@ uv run --locked python -m app.seed --with-llm --date 2026-11-21
 
 ## 并发执行
 
-每个批处理进程最多同时处理 16 位 Patron，等待队列最多 32 个 ID。批任务共用一个 QwenClient，其请求信号量保证最多 16 个 HTTP 请求在途，重试退避时释放请求名额。同一位客人先完成物品选择，再选择餐厅。数据库同步访问通过后台线程执行，五项结果的发布事务沿用现有实现。
+每个批处理进程最多同时处理 16 位 Patron，等待队列最多 32 个 ID。批任务共用一个 QwenClient，其请求信号量保证最多 16 个 HTTP 请求在途，重试退避时释放请求名额。同一位客人的物品与餐厅使用独立上下文并发选择，共享一个 QwenClient 请求限流器。数据库同步访问通过后台线程执行，五项结果的发布事务沿用现有实现。
 
 上限 16 按单个批处理进程生效，多个独立进程或其他 vLLM 调用方的请求数量需要部署侧统一协调。--batch-size 控制每页 ID 数量，和并发上限分别控制。当前仍按 ID 读取 Patron，未在这次改动中增加批量资料读取或批量结果写入。
