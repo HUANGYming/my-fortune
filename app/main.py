@@ -1,3 +1,4 @@
+"""Expose authenticated REST reads of precomputed fortunes and a liveness endpoint."""
 from datetime import date, datetime
 import logging
 import secrets
@@ -30,12 +31,14 @@ def live():
 @app.get("/v1/patrons/{patron_id}/fortunes/today", response_model=Fortune,
          dependencies=[Depends(authorize)])
 def today(patron_id: str, repo: Repository = Depends(repository)):
+    # Resolve "today" in Macau time and reuse the dated lookup path.
     return read_fortune(patron_id, datetime.now(ZoneInfo("Asia/Macau")).date(), repo)
 
 
 @app.get("/v1/patrons/{patron_id}/fortunes/{fortune_date}", response_model=Fortune,
          dependencies=[Depends(authorize)], responses={404: {"description": "Result not calculated"}})
 def read_fortune(patron_id: str, fortune_date: date, repo: Repository = Depends(repository)):
+    # API reads never calculate fortunes or call Qwen; the batch job publishes them.
     try:
         result = repo.get_fortune(patron_id, fortune_date)
     except Exception:

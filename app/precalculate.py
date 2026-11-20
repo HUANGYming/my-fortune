@@ -12,8 +12,10 @@ logger = logging.getLogger(__name__)
 
 
 async def run(target_date: date, batch_size: int = 500) -> int:
+    """Process the full source table with bounded concurrency; return the failure count."""
     settings = get_settings()
     repo = Repository(settings)
+    # Workers share one service and its Qwen request semaphore.
     service = FortuneService(settings, repo)
     failures = 0
     processed = 0
@@ -29,6 +31,7 @@ async def run(target_date: date, batch_size: int = 500) -> int:
                 break
             await queue.put(patron_id)
         for _ in range(CONCURRENCY_LIMIT):
+            # One sentinel lets each worker stop after all queued patrons are consumed.
             await queue.put(None)
 
     async def consume():
@@ -45,6 +48,7 @@ async def run(target_date: date, batch_size: int = 500) -> int:
                 await service.generate(patron, target_date)
                 logger.info("Fortune available for patron=%s date=%s", patron_id, target_date)
             except Exception:
+                # A patron failure is logged without stopping the rest of the batch.
                 failures += 1
                 logger.exception("Generation failed for patron=%s date=%s", patron_id, target_date)
 
@@ -67,6 +71,7 @@ def positive_integer(value: str) -> int:
 
 
 def main():
+    # The target date follows Macau time, regardless of the server's timezone.
     logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--date", type=date.fromisoformat,

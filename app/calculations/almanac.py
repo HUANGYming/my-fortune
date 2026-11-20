@@ -1,9 +1,11 @@
+"""Calculate daily almanac facts for the target Macau calendar date."""
 from datetime import datetime, time
 from app.calculations.calendar import solar
 from app.calculations.bazi import ten_god
 
 
 def calculate_almanac(target_date, master: str | None) -> tuple[dict, object]:
+    """Return almanac facts and the lunar object used to read daily coordinates."""
     lunar = solar(datetime.combine(target_date, time())).getLunar()
     day = lunar.getEightChar().getDay()
     basic = {"日期": target_date.isoformat(), "日干支": day}

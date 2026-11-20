@@ -3,10 +3,12 @@ from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+# Per-batch worker count and per-client limit for in-flight Qwen requests.
 CONCURRENCY_LIMIT = 16
 
 
 class Settings(BaseSettings):
+    # Read deployment values from environment variables or the local .env file.
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
     database_dsn: SecretStr
     api_key: SecretStr

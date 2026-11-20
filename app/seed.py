@@ -10,6 +10,7 @@ from app.precalculate import run
 
 
 def seed_sql(with_llm: bool) -> str:
+    """Return demo SQL, optionally leaving saved fortunes untouched for live generation."""
     script = Path(__file__).resolve().parent.parent / "sql" / "003_test_data.sql"
     sql = script.read_text()
     if with_llm:
@@ -37,6 +38,7 @@ def main():
     finally:
         connection.close()
     if args.with_llm:
+        # Real-model mode runs the same full-table pipeline as the scheduled batch.
         target_date = args.date or datetime.now(ZoneInfo("Asia/Macau")).date()
         failures = asyncio.run(run(target_date))
         print(f"Full-table generation finished for {target_date}. Failures: {failures}; saved results are reused.")

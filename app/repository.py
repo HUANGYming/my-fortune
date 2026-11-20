@@ -1,3 +1,4 @@
+"""Map Yellowbrick rows to domain models and publish complete daily results."""
 import json
 from datetime import date
 from app.config import Settings
@@ -10,6 +11,7 @@ class Repository:
         self.settings = settings
 
     def get_patron(self, patron_id: str) -> Patron | None:
+        """Read birth inputs from the source table without inventing missing values."""
         with connection(self.settings) as conn, conn.cursor() as cursor:
             cursor.execute(
                 "SELECT patron_id, birth_date, birth_hour, gender, birth_minute, birth_timezone, longitude "
@@ -46,6 +48,7 @@ class Repository:
             after = rows[-1][0]
 
     def get_fortune(self, patron_id: str, target_date: date) -> Fortune | None:
+        """Read a stored result; a missing row does not trigger generation."""
         with connection(self.settings) as conn, conn.cursor() as cursor:
             cursor.execute(
                 "SELECT payload FROM my_fortunes WHERE patron_id = %s AND fortune_date = %s "
@@ -55,6 +58,7 @@ class Repository:
         return Fortune.model_validate_json(row[0]) if row else None
 
     def catalog(self, kind: str) -> list[CatalogEntry]:
+        """Load active items or restaurants; rules.py applies element/tag filtering."""
         with connection(self.settings) as conn, conn.cursor() as cursor:
             cursor.execute(
                 "SELECT entry_id, name, metadata_json FROM fortune_catalog "
@@ -64,6 +68,7 @@ class Repository:
                     for row in cursor.fetchall()]
 
     def save(self, fortune: Fortune, audit: dict) -> None:
+        """Publish the result and audit together, preserving any existing success."""
         # Serialize the short publication transaction across writers, including retries.
         # All writers must use this path. Verify LOCK support on the target YB version.
         with connection(self.settings) as conn, conn.cursor() as cursor:

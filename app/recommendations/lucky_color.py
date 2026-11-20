@@ -1,3 +1,4 @@
+"""Rotate within the product's ten-color palette by recommended element."""
 from datetime import date
 from app.models import Color
 
@@ -12,6 +13,7 @@ PALETTES = {
 
 
 def generate(context: dict) -> Color:
+    """Return a date-selected color name and hex value from the element's palette."""
     palette = PALETTES[context["daily_reading"]["element"]]
     name, hex_value = palette[date.fromisoformat(context["date"]).toordinal() % len(palette)]
     return Color(name=name, hex=hex_value)

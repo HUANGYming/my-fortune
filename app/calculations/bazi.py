@@ -1,3 +1,4 @@
+"""Calculate natal pillars, chart attributes, and luck cycles from birth inputs."""
 from datetime import datetime, time
 from lunar_python.util import LunarUtil
 from app.calculations.calendar import CALENDAR_ZONE, resolve_instant, solar, true_solar_time
@@ -6,16 +7,20 @@ LABELS = {"year": "年柱", "month": "月柱", "day": "日柱", "hour": "时柱"
 
 
 def ten_god(master: str, target: str) -> str:
+    """Look up the ten-god relationship between two heavenly stems."""
     return LunarUtil.SHI_SHEN[master + target]
 
 
 def birth_context(patron):
+    """Return natal pillar pairs, calendar objects, and any solar-time correction."""
     unknown = patron.birth_hour is None
     wall = datetime.combine(patron.birth_date, time(patron.birth_hour or 0, 0 if unknown else patron.birth_minute or 0))
     instant = resolve_instant(wall, patron.birth_timezone, unknown_hour=unknown)
+    # Solar terms use the actual instant; day/hour pillars may use true solar time.
     terms = solar(instant.astimezone(CALENDAR_ZONE)).getLunar()
     late_terms = terms
     if unknown:
+        # Reject dates whose year/month pillars change within the unknown birth day.
         late = datetime.combine(patron.birth_date, time(23, 59))
         late_terms = solar(resolve_instant(late, patron.birth_timezone, unknown_hour=True).astimezone(CALENDAR_ZONE)).getLunar()
         if (terms.getYearInGanZhiExact(), terms.getMonthInGanZhiExact()) != (late_terms.getYearInGanZhiExact(), late_terms.getMonthInGanZhiExact()):
@@ -33,6 +38,7 @@ def birth_context(patron):
 
 
 def life_stage(master: str, branch: str) -> str:
+    """Look up one of the twelve life stages using stem polarity and branch."""
     stems = "甲乙丙丁戊己庚辛壬癸"
     branches = "子丑寅卯辰巳午未申酉戌亥"
     start = dict(zip(stems, "亥午寅酉寅酉巳子申卯"))[master]
@@ -42,6 +48,7 @@ def life_stage(master: str, branch: str) -> str:
 
 
 def render_bazi(patron, pairs: dict, local, correction) -> dict:
+    """Build chart facts: pillars, hidden stems, ten gods, life stages, and Na Yin."""
     master = pairs['day'][0]
     pillars = []
     for label, pair in pairs.items():
@@ -61,6 +68,7 @@ def render_bazi(patron, pairs: dict, local, correction) -> dict:
 
 
 def fortune_cycles(patron, terms, late_terms, target_year: int) -> tuple[list[dict], dict]:
+    """Return active luck pillars and cycle metadata for the target solar-term year."""
     gender = 1 if patron.gender == 'male' else 0
     yuns = [calendar.getEightChar().getYun(gender, 1) for calendar in (terms, late_terms)]
     yuns.sort(key=lambda yun: yun.getStartSolar().toYmdHms())

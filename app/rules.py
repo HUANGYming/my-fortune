@@ -6,12 +6,13 @@ RULES_VERSION = "daily-theme-v8"
 ELEMENTS = ("wood", "fire", "earth", "metal", "water")
 STEM_ELEMENTS = dict(zip("甲乙丙丁戊己庚辛壬癸", (
     "wood", "wood", "fire", "fire", "earth", "earth", "metal", "metal", "water", "water")))
-# 相生关系：木生火、火生土、土生金、金生水、水生木。
+# Generating cycle: wood -> fire -> earth -> metal -> water -> wood.
 GENERATES = dict(zip(ELEMENTS, ("fire", "earth", "metal", "water", "wood")))
 GENERATED_BY = {child: parent for parent, child in GENERATES.items()}
-# 相克关系：木克土、火克金、土克水、金克木、水克火。
+# Controlling cycle: wood -> earth -> water -> fire -> metal -> wood.
 CONTROLS = dict(zip(ELEMENTS, ("earth", "metal", "water", "wood", "fire")))
 BRANCHES = "子丑寅卯辰巳午未申酉戌亥"
+# Zodiac names follow the same order as the twelve earthly branches above.
 ZODIACS = ("Rat", "Ox", "Tiger", "Rabbit", "Dragon", "Snake", "Horse", "Goat", "Monkey", "Rooster", "Dog", "Pig")
 COMBINES = ("子丑", "寅亥", "卯戌", "辰酉", "巳申", "午未")
 TRINES = ("申子辰", "亥卯未", "寅午戌", "巳酉丑")
@@ -19,15 +20,17 @@ CLASHES = ("子午", "丑未", "寅申", "卯酉", "辰戌", "巳亥")
 
 
 def daily_element_decision(facts: dict) -> dict:
-    """Apply the agreed support policy, not a full 旺衰 / 喜用神 assessment.
+    """Choose a support element from the daily stem and natal day master.
 
-    生我、我生、克我 -> 生我的五行；同我、我克 -> 日主五行。
-    No random mode, element scores, or date-based tie-breaking are used.
+    Generating, draining, or controlling days use the element that generates the master.
+    Same-element days or days controlled by the master use the master's own element.
+    This product policy does not assess chart strength or favorable elements.
     """
     coords = facts["coordinates"]
     daily = STEM_ELEMENTS[coords["day_stem"]]
     master = coords.get("day_master")
     if master is None:
+        # Without a natal chart, use a general daily theme instead of inventing one.
         return {
             "strategy": "general", "day_master_element": None,
             "day_element": daily, "relationship": None, "element": daily,
@@ -62,6 +65,7 @@ def catalog_matches(context: dict, entry: CatalogEntry) -> dict[str, bool]:
     """Validate current catalog tags without changing historical payload parsing."""
     tags = {}
     for key, allowed in (("elements", ELEMENTS), ("zodiacs", ZODIACS), ("colors", None)):
+        # Require arrays so a string such as "metal" cannot match as a substring.
         values = entry.metadata.get(key, [])
         if (not isinstance(values, list)
                 or any(not isinstance(value, str) or (allowed is not None and value not in allowed)
@@ -83,9 +87,11 @@ def rank_catalog(context: dict, catalog: list[CatalogEntry], kind: str) -> list[
     for entry in catalog:
         matches = catalog_matches(context, entry)
         if matches["element"]:
+            # Zodiac and color never make a wrong-element entry eligible.
             candidates.append((matches, entry))
     if not candidates:
         raise ValueError(f"No eligible {kind} candidate for element {element}")
+    # Boolean priority tiers avoid arbitrary numeric weights.
     candidates.sort(key=lambda candidate: (
         not candidate[0]["zodiac"], not candidate[0]["color"], candidate[1].id,
     ))

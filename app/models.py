@@ -23,6 +23,7 @@ class Zodiac(str, Enum):
     PIG = "Pig"
 
 
+# Missing birth values stay None so calculations can use explicit fallbacks.
 class Patron(StrictModel):
     patron_id: str
     birth_date: date | None = None
@@ -34,6 +35,7 @@ class Patron(StrictModel):
 
 
 
+# Metadata stores element/zodiac/color tags plus item or restaurant descriptions.
 class CatalogEntry(StrictModel):
     id: str
     name: str
@@ -45,6 +47,7 @@ class Color(StrictModel):
     hex: str = Field(pattern=r"^#[0-9a-fA-F]{6}$")
 
 
+# Complete public document saved in my_fortunes.payload and returned by REST.
 class Fortune(StrictModel):
     patron_id: str
     fortune_date: date

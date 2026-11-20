@@ -1,3 +1,4 @@
+"""Select a zodiac from personal branch partners and daily relations."""
 from datetime import date
 from app.models import Zodiac
 from app.rules import BRANCHES, ZODIACS, COMBINES, TRINES, CLASHES
@@ -17,11 +18,12 @@ TRINE_PARTNERS = {
 
 
 def _ordered(branches: set[str]) -> list[str]:
-    """Use a stable 十二地支 order, independent of set or natal pillar order."""
+    """Use stable earthly-branch order regardless of set or natal pillar order."""
     return [branch for branch in BRANCHES if branch in branches]
 
 
 def generate(context: dict) -> Zodiac:
+    """Return a zodiac and attach the full decision trace to the shared context."""
     coordinates = context["facts"]["coordinates"]
     daily = coordinates["day_branch"]
     clash = CLASH_PARTNER[daily]
@@ -29,7 +31,7 @@ def generate(context: dict) -> Zodiac:
              for pillar in coordinates.get("natal", [])
              if pillar["label"] in ("year", "month", "day", "hour")]
 
-    # 个人四支各取六合，合并去重；未知时辰不会补造时支。
+    # Deduplicate combine partners from known natal pillars; unknown hours are skipped.
     sources = [{**pillar, "candidate": COMBINE_PARTNER[pillar["branch"]]}
                for pillar in natal]
     source = "personal_combines" if natal else "daily_combine"
@@ -37,17 +39,18 @@ def generate(context: dict) -> Zodiac:
     eligible = base - {clash}
     fallback: set[str] = set()
     if not eligible:
-        # 仅在个人六合候选全部与当天六冲时，扩展个人三合组伙伴。
+        # Expand personal trine-group partners only if every combine candidate clashes today.
         source = "personal_trines"
         fallback = {peer for pillar in natal for peer in TRINE_PARTNERS[pillar["branch"]]}
         eligible = fallback - {clash}
     if not eligible:
         raise ValueError("No eligible zodiac candidate after daily clash exclusion")
 
-    # 当天六合与同组三合为同一优先级；不另设六合必胜或个人四支冲突否决。
+    # Daily combine and trine partners share priority; only today's clash is a hard veto.
     daily_partners = {COMBINE_PARTNER[daily], *TRINE_PARTNERS[daily]}
     preferred = eligible & daily_partners
     pool = _ordered(preferred or eligible)
+    # Date-based rotation is reproducible and does not use random sampling.
     index = date.fromisoformat(context["date"]).toordinal() % len(pool)
     chosen = pool[index]
     zodiac = Zodiac(ZODIACS[BRANCHES.index(chosen)])
@@ -64,6 +67,7 @@ def generate(context: dict) -> Zodiac:
         origin = "个人四支的六合生肖" if source == "personal_combines" else "个人六合候选全部被排除后扩展的三合组伙伴"
         priority = "优先选择与当天六合或同属三合组的候选" if preferred else "候选均无当天六合或同组三合关系，使用剩余无冲候选"
         reason = f"从{origin}出发，排除与当天{daily}六冲的{clash}；{priority}，按目标日期在固定地支顺序中选择{chosen}（{zodiac.value}）。"
+    # service.py forwards this evidence to Qwen and persists it in audit_json.
     context["zodiac_decision"] = {
         "candidate_source": source, "day_branch": daily,
         "personal_branches": natal, "candidate_origins": sources,

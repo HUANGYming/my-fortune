@@ -12,4 +12,5 @@ class TaibuClient:
         self.settings = settings
 
     async def context(self, patron: Patron, target_date: date) -> dict:
+        """Run native calendar/chart calculations in a worker thread."""
         return await asyncio.to_thread(calculate_context, patron, target_date)

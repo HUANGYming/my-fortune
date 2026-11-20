@@ -1,3 +1,4 @@
+"""Assemble native chart and daily facts consumed by service.py and the rule layer."""
 from datetime import datetime, time
 from lunar_python.util import LunarUtil
 from app.calculations.almanac import calculate_almanac
@@ -7,6 +8,7 @@ from app.calculations.relations import analyze, fortune_hints, tai_sui
 
 
 def calculate_context(patron, target_date) -> dict:
+    """Return natal pillars, daily almanac, luck relations, and rule coordinates."""
     if patron.birth_date and target_date < patron.birth_date:
         raise ValueError('Fortune date precedes birth date')
     pairs = {}
@@ -14,6 +16,7 @@ def calculate_context(patron, target_date) -> dict:
     status = 'general'
     terms = late_terms = None
     if patron.birth_date and patron.gender and patron.birth_timezone:
+        # Missing hours allow three pillars; insufficient birth data keeps general mode.
         pairs, local, terms, late_terms, correction = birth_context(patron)
         bazi = render_bazi(patron, pairs, local, correction)
         status = 'three_pillars' if patron.birth_hour is None else 'four_pillars'
@@ -37,6 +40,7 @@ def calculate_context(patron, target_date) -> dict:
                      "岁运提示":fortune_hints(pillars,len(natal)),
                      "太岁关系":tai_sui(flow_year[1],pairs["year"][1]),
                      "计算规则":{"ruleVersion":"python-relations-v1"}}
+    # Coordinates provide compact inputs; the full facts remain available for audit/Qwen.
     return {"engine":{"name":"my-fortune-python", "version":"1.0.0", "upstream":"taibu-core 4.1.0 / 4b2a51a",
                       "calendar":"lunar-python 1.4.9", "astronomy":"astronomy-engine 2.1.19"},
             "personalization":status, "almanac":almanac,"bazi":bazi,"relations":relations,

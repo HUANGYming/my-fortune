@@ -1,15 +1,19 @@
+"""Let Qwen choose one item from a rule-filtered catalog shortlist."""
 from pydantic import Field
 from app.llm import QwenClient
 from app.models import CatalogEntry, StrictModel
 from app.rules import rank_catalog, catalog_matches
 
 
+# Qwen returns a catalog ID and reason, never a fabricated product document.
 class Selection(StrictModel):
     entry_id: str
     reason: str = Field(min_length=1, max_length=1000)
 
 
 async def generate(llm: QwenClient, context: dict, catalog: list[CatalogEntry]) -> CatalogEntry:
+    """Shortlist matching items, validate Qwen's choice, and record rule evidence."""
+    # Hard-filter by element before applying optional zodiac/color priorities.
     ranked = rank_catalog(context, catalog, "item")[:20]
     selection_context = {
         **context,
@@ -24,6 +28,7 @@ async def generate(llm: QwenClient, context: dict, catalog: list[CatalogEntry]) 
         "a concise reason grounded in supplied facts. Select only a listed candidate.",
         selection_context, Selection,
     )
+    # Accept only an ID from the exact shortlist sent to the model.
     for entry in ranked:
         if entry.id == result.entry_id:
             matches = catalog_matches(context, entry)

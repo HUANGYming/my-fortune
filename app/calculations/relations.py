@@ -18,10 +18,12 @@ PUNISHMENTS = (('寅巳申','无恩之刑'),('丑戌未','恃势之刑'),('子�
 
 
 def analyze(pillars: list[dict], natal_count: int = 0) -> list[dict]:
+    """Find stem/branch relations, optionally focusing on pillars after the natal portion."""
     focus = set(range(natal_count, len(pillars)))
     facts = {}
 
     def add(kind, part, indices, result=''):
+        # Deduplicate group relations while retaining distinct luck/flow anchors.
         chars = ''.join(sorted({pillars[i][part] for i in indices}))
         anchors = tuple(sorted(focus.intersection(indices)))
         key = (kind, result, tuple(sorted(indices))) if kind not in ('三合','半合','三会','相刑') else (kind,result,chars,anchors)
@@ -75,6 +77,7 @@ def analyze(pillars: list[dict], natal_count: int = 0) -> list[dict]:
 
 
 def fortune_hints(pillars: list[dict], natal_count: int) -> list[str]:
+    """Describe repeated or opposing luck/flow pillars against earlier pillars."""
     hints = []
     for i in range(natal_count, len(pillars)):
         b = pillars[i]
@@ -91,6 +94,7 @@ def fortune_hints(pillars: list[dict], natal_count: int) -> list[str]:
 
 
 def tai_sui(year_branch: str, natal_branch: str) -> list[str]:
+    """Compare target-year and natal-year branches for Tai Sui labels."""
     result = ['值太岁'] if year_branch == natal_branch else []
     for name, pairs in (('冲太岁',PAIR_RULES[3][2]),('合太岁',PAIR_RULES[2][2])):
         if year_branch != natal_branch and any(set((year_branch,natal_branch)) == set(pair) for pair in pairs):

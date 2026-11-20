@@ -1,3 +1,4 @@
+"""Coordinate calculation, five recommendations, and atomic publication."""
 import asyncio
 from datetime import date, datetime, timezone
 from app.config import Settings
@@ -17,50 +18,48 @@ class FortuneService:
         self.taibu = TaibuClient(settings)
 
     async def generate(self, patron: Patron, target_date: date) -> Fortune:
-        # 第 1 步：查询该客人、该日期的已发布结果。存在时直接复用，支持批任务安全重跑。
+        """Return an existing result or generate and persist all five fields."""
+        # Step 1: Reuse a published result so batch retries do not overwrite it.
         existing = await asyncio.to_thread(self.repository.get_fortune, patron.patron_id, target_date)
         if existing:
             return existing
 
-        # 第 2 步：读取有效物品和餐厅目录。两类目录都需要有候选才能生成完整推荐。
+        # Step 2: Load active catalog entries; both kinds are required.
         item_catalog = await asyncio.to_thread(self.repository.catalog, "item")
         dining_catalog = await asyncio.to_thread(self.repository.catalog, "dining")
         if not item_catalog or not dining_catalog:
             raise ValueError("Both item and dining catalogs require active entries")
 
-        # 第 3 步：执行 Python 命理计算，取得个人命盘、当天黄历及岁运干支关系。
-        # 当前每次重新排盘，出生资料不足时返回标记为 general 的一般黄历上下文。
+        # Step 3: Calculate natal, almanac, and luck-cycle facts in Python.
+        # Missing birth data produces general daily facts; charts are not cached yet.
         facts = await self.taibu.context(patron, target_date)
 
-        # 第 4 步：组装供各模块共享的 context，包括目标日期、出生资料和计算事实。
-        # Patron ID 仅用于关联存储，模型输入只包含出生资料。
+        # Step 4: Share birth data, target date, and facts across recommendation modules.
+        # Patron ID is a storage key and is excluded from model input.
         profile = patron.model_dump(mode="json", exclude={"patron_id"})
         context = {"date": target_date.isoformat(), "profile": profile, "facts": facts}
 
-        # 第 5 步：识别当天日干与个人日主的五行关系，执行固定生扶策略。
-        # 生我、我生、克我 -> 生我五行；同我、我克 -> 日主五行。
-        # 无日主时使用当天五行。决策含输入、关系和理由，供 Qwen 及审计使用。
+        # Step 5: Apply the support policy to the daily stem and natal day master.
+        # The decision includes its inputs, relationship, and reason for model/audit use.
         context["element_decision"] = daily_element_decision(facts)
 
-        # 第 6 步：取规则确定的五行，不再加分、抽选或按日期打破平分。
-        # daily_reading 只保留 element，数字、颜色及目录五行筛选共用该结果。
+        # Step 6: Share the chosen element with number, color, and catalog rules.
+        # This decision uses neither random sampling nor element scores.
         element = context["element_decision"]["element"]
         context["daily_reading"] = {"element": element}
 
-        # 第 7 步：个人四支六合生肖作为候选，避开当天六冲，优先当天六合或同组三合。
-        # 候选全部被排除时扩展个人三合伙伴；并列按日期轮换，无个人地支时用当天六合。
-        # 生肖模块将输入、候选、排除和理由存入 context.zodiac_decision，供 Qwen 及审计使用。
-        # 数字和颜色沿用日运五行及日期规则；幸运生肖、颜色供后续目录优先排序使用。
+        # Step 7: Generate zodiac from branch relations; number/color use the element.
+        # The zodiac module also records its candidate trace in zodiac_decision.
+        # Selected zodiac and color become optional catalog ranking signals.
         zodiac = lucky_zodiac.generate(context)
         number = lucky_number.generate(context)
         color = lucky_color.generate(context)
         context["lucky_color"] = color.model_dump()
         context["lucky_zodiac"] = zodiac.value
 
-        # 第 8 步：物品、餐厅强制筛选五行匹配的有效目录；生肖匹配优先，其次颜色匹配。
-        # 各取前 20 个交给 Qwen 选择真实 ID，不匹配五行的条目不会进入模型候选。
-        # 没有匹配目录则本次失败，不跨五行兜底或伪造商品、餐厅。
-        # 独立上下文保存各自的选择理由；共享 QwenClient 将在途请求总数限制为 16。
+        # Step 8: Each module filters by element, ranks tags, and sends up to 20 IDs to Qwen.
+        # Independent contexts allow concurrent item/dining calls without shared audit writes.
+        # The shared client caps in-flight requests at 16; empty candidate pools fail.
         item_context = {**context, "catalog_decisions": {}}
         dining_context = {**context, "catalog_decisions": {}}
         async with asyncio.TaskGroup() as tasks:
@@ -72,8 +71,8 @@ class FortuneService:
             **item_context["catalog_decisions"], **dining_context["catalog_decisions"],
         }
 
-        # 第 9 步：五项全部成功后组装 Fortune，保存展示结果、版本及计算审计依据。
-        # Repository.save 在一个数据库事务内发布，前面任何一步失败都不会写入部分结果。
+        # Step 9: Publish all five fields and audit evidence in one transaction.
+        # Any earlier failure leaves no partially published fortune.
         fortune = Fortune(
             patron_id=patron.patron_id, fortune_date=target_date,
             lucky_zodiac=zodiac, lucky_number=number, lucky_color=color,
@@ -86,8 +85,7 @@ class FortuneService:
                                      "zodiac_decision": context["zodiac_decision"],
                                      "catalog_decisions": context["catalog_decisions"]})
 
-        # 第 10 步：重新读取数据库中的最终结果并返回。
-        # 并发任务可能已先完成发布，因此以数据库实际保存的那一份为准。
+        # Step 10: Return the stored document, including any result published by a rival worker.
         saved = await asyncio.to_thread(self.repository.get_fortune, patron.patron_id, target_date)
         if saved is None:
             raise RuntimeError("Published fortune could not be read")

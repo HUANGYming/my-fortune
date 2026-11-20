@@ -1,3 +1,4 @@
+"""Call on-premises Qwen through vLLM's OpenAI-compatible chat endpoint."""
 import asyncio
 import json
 from typing import TypeVar
@@ -14,6 +15,7 @@ class QwenClient:
         self._request_slots = asyncio.Semaphore(CONCURRENCY_LIMIT)
 
     async def generate(self, task: str, context: dict, schema: type[T]) -> T:
+        """Send task data and validate the returned JSON against the supplied schema."""
         headers = {}
         key = self.settings.qwen_api_key.get_secret_value()
         if key:
@@ -46,6 +48,7 @@ class QwenClient:
                     content = response.json()["choices"][0]["message"]["content"]
                     return schema.model_validate_json(content)
                 except httpx.HTTPStatusError as error:
+                    # Retry only transient service failures; invalid model JSON fails immediately.
                     if error.response.status_code not in (429, 502, 503, 504) or attempt == 2:
                         raise
                 except httpx.TransportError:

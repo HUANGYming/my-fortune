@@ -1,17 +1,21 @@
+"""Resolve birth instants and optional true-solar-time corrections."""
 import math
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 import astronomy
 from lunar_python import Solar
 
+# Solar-term calculations use the upstream fixed UTC+8 reference.
 CALENDAR_ZONE = timezone(timedelta(hours=8))
 
 
 def solar(value: datetime):
+    """Convert wall-clock fields to lunar-python's Solar calendar object."""
     return Solar.fromYmdHms(value.year, value.month, value.day, value.hour, value.minute, value.second)
 
 
 def resolve_instant(wall: datetime, zone_name: str, *, unknown_hour: bool = False) -> datetime:
+    """Resolve local time to UTC, rejecting DST gaps/overlaps for known birth hours."""
     zone = ZoneInfo(zone_name)
     candidates = sorted({wall.replace(tzinfo=zone, fold=fold).astimezone(timezone.utc)
                          for fold in (0, 1)
@@ -28,6 +32,7 @@ def resolve_instant(wall: datetime, zone_name: str, *, unknown_hour: bool = Fals
 
 
 def true_solar_time(instant: datetime, zone_name: str, longitude: float) -> tuple[datetime, dict]:
+    """Return corrected birth time and audit details using longitude and solar position."""
     clock = instant.astimezone(ZoneInfo(zone_name))
     time = astronomy.Time.Make(instant.year, instant.month, instant.day,
                                instant.hour, instant.minute, instant.second)
