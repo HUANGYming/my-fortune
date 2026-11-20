@@ -7,7 +7,7 @@
 BEGIN;
 DELETE FROM my_fortunes WHERE patron_id IN ('DEMO-P001', 'DEMO-P002', 'DEMO-P003', 'DEMO-P004', 'DEMO-P005', 'DEMO-P006') AND fortune_date IN ('2026-11-19', '2026-11-20');
 DELETE FROM fortune_patron_source WHERE patron_id IN ('DEMO-P001', 'DEMO-P002', 'DEMO-P003', 'DEMO-P004', 'DEMO-P005', 'DEMO-P006');
-DELETE FROM fortune_catalog WHERE entry_id IN ('DEMO-I001', 'DEMO-I002', 'DEMO-I003', 'DEMO-I004', 'DEMO-I005', 'DEMO-I006', 'DEMO-D001', 'DEMO-D002', 'DEMO-D003', 'DEMO-D004', 'DEMO-D005', 'DEMO-D006');
+DELETE FROM fortune_catalog WHERE entry_id IN ('DEMO-I001', 'DEMO-I002', 'DEMO-I003', 'DEMO-I004', 'DEMO-I005', 'DEMO-I006', 'DEMO-I007', 'DEMO-I008', 'DEMO-I009', 'DEMO-I010', 'DEMO-D001', 'DEMO-D002', 'DEMO-D003', 'DEMO-D004', 'DEMO-D005', 'DEMO-D006', 'DEMO-D007', 'DEMO-D008', 'DEMO-D009', 'DEMO-D010');
 
 INSERT INTO fortune_patron_source (patron_id,birth_date,birth_hour,gender,birth_minute,birth_timezone,longitude) VALUES
     ('DEMO-P001', '1990-01-15', 9, 'male', 30, 'Asia/Macau', 113.5439),
@@ -18,18 +18,26 @@ INSERT INTO fortune_patron_source (patron_id,birth_date,birth_hour,gender,birth_
     ('DEMO-P006', '1992-08-03', 16, 'male', 45, 'Europe/London', NULL);
 
 INSERT INTO fortune_catalog (kind, entry_id, name, metadata_json, active) VALUES
-    ('item', 'DEMO-I001', 'Gold Earrings', '{"demo": true, "elements": ["metal"], "colors": ["gold"], "materials": ["gold"], "category": "jewelry"}', TRUE),
-    ('item', 'DEMO-I002', 'Jade Pendant', '{"demo": true, "elements": ["wood"], "colors": ["jade", "green"], "materials": ["jade"], "category": "jewelry"}', TRUE),
-    ('item', 'DEMO-I003', 'Red Silk Scarf', '{"demo": true, "elements": ["fire"], "colors": ["red"], "materials": ["silk"], "category": "accessory"}', TRUE),
-    ('item', 'DEMO-I004', 'Brown Ceramic Charm', '{"demo": true, "elements": ["earth"], "colors": ["brown"], "materials": ["ceramic"], "category": "accessory"}', TRUE),
-    ('item', 'DEMO-I005', 'Blue Travel Pouch', '{"demo": true, "elements": ["water"], "colors": ["blue"], "materials": ["cotton"], "category": "accessory"}', TRUE),
+    ('item', 'DEMO-I001', 'Gold Earrings', '{"demo": true, "elements": ["metal"], "zodiacs": ["Tiger", "Horse"], "colors": ["gold"], "materials": ["gold"], "category": "jewelry"}', TRUE),
+    ('item', 'DEMO-I002', 'Jade Pendant', '{"demo": true, "elements": ["wood"], "zodiacs": ["Tiger", "Rabbit"], "colors": ["jade", "green"], "materials": ["jade"], "category": "jewelry"}', TRUE),
+    ('item', 'DEMO-I003', 'Red Silk Scarf', '{"demo": true, "elements": ["fire"], "zodiacs": ["Horse", "Snake"], "colors": ["red"], "materials": ["silk"], "category": "accessory"}', TRUE),
+    ('item', 'DEMO-I004', 'Brown Ceramic Charm', '{"demo": true, "elements": ["earth"], "zodiacs": ["Ox", "Dog"], "colors": ["brown"], "materials": ["ceramic"], "category": "accessory"}', TRUE),
+    ('item', 'DEMO-I005', 'Blue Travel Pouch', '{"demo": true, "elements": ["water"], "zodiacs": ["Rat", "Pig"], "colors": ["blue"], "materials": ["cotton"], "category": "accessory"}', TRUE),
     ('item', 'DEMO-I006', 'White Nickel Bracelet', '{"demo": true, "elements": ["metal"], "colors": ["white"], "materials": ["nickel"], "category": "jewelry"}', TRUE),
-    ('dining', 'DEMO-D001', 'Sichuan Restaurant (Demo)', '{"demo": true, "elements": ["fire"], "colors": ["red"], "cuisine": "sichuan", "allergens": ["peanut"], "dietary_options": ["vegetarian"]}', TRUE),
-    ('dining', 'DEMO-D002', 'Jade Garden Vegetarian (Demo)', '{"demo": true, "elements": ["wood"], "colors": ["green", "jade"], "cuisine": "vegetarian", "allergens": [], "dietary_options": ["vegetarian", "vegan"]}', TRUE),
-    ('dining', 'DEMO-D003', 'Golden Cantonese Kitchen (Demo)', '{"demo": true, "elements": ["metal", "earth"], "colors": ["gold", "yellow"], "cuisine": "cantonese", "allergens": ["shellfish"], "dietary_options": ["vegetarian"]}', TRUE),
-    ('dining', 'DEMO-D004', 'Blue Harbour Japanese (Demo)', '{"demo": true, "elements": ["water"], "colors": ["blue"], "cuisine": "japanese", "allergens": ["fish", "shellfish"], "dietary_options": ["vegetarian"]}', TRUE),
+    ('item', 'DEMO-I007', 'Wooden Bookmark', '{"demo": true, "elements": ["wood"], "zodiacs": ["Rabbit", "Goat"], "colors": ["green", "brown"], "materials": ["wood"], "category": "stationery"}', TRUE),
+    ('item', 'DEMO-I008', 'Red Glass Pendant', '{"demo": true, "elements": ["fire"], "colors": ["red"], "materials": ["glass"], "category": "jewelry"}', TRUE),
+    ('item', 'DEMO-I009', 'Yellow Ceramic Cup', '{"demo": true, "elements": ["earth"], "colors": ["yellow"], "materials": ["ceramic"], "category": "homeware"}', TRUE),
+    ('item', 'DEMO-I010', 'Blue Glass Charm', '{"demo": true, "elements": ["water"], "colors": ["blue"], "materials": ["glass"], "category": "accessory"}', TRUE),
+    ('dining', 'DEMO-D001', 'Sichuan Restaurant (Demo)', '{"demo": true, "elements": ["fire"], "zodiacs": ["Horse", "Snake"], "colors": ["red"], "cuisine": "sichuan", "allergens": ["peanut"], "dietary_options": ["vegetarian"]}', TRUE),
+    ('dining', 'DEMO-D002', 'Jade Garden Vegetarian (Demo)', '{"demo": true, "elements": ["wood"], "zodiacs": ["Tiger", "Rabbit"], "colors": ["green", "jade"], "cuisine": "vegetarian", "allergens": [], "dietary_options": ["vegetarian", "vegan"]}', TRUE),
+    ('dining', 'DEMO-D003', 'Golden Cantonese Kitchen (Demo)', '{"demo": true, "elements": ["metal", "earth"], "zodiacs": ["Dragon", "Rooster"], "colors": ["gold", "yellow"], "cuisine": "cantonese", "allergens": ["shellfish"], "dietary_options": ["vegetarian"]}', TRUE),
+    ('dining', 'DEMO-D004', 'Blue Harbour Japanese (Demo)', '{"demo": true, "elements": ["water"], "zodiacs": ["Rat", "Pig"], "colors": ["blue"], "cuisine": "japanese", "allergens": ["fish", "shellfish"], "dietary_options": ["vegetarian"]}', TRUE),
     ('dining', 'DEMO-D005', 'Earth Table (Demo)', '{"demo": true, "elements": ["earth"], "colors": ["brown"], "cuisine": "international", "allergens": [], "dietary_options": ["vegetarian", "vegan"]}', TRUE),
-    ('dining', 'DEMO-D006', 'Closed Restaurant (Demo)', '{"demo": true, "elements": ["fire"], "colors": ["red"], "cuisine": "sichuan", "allergens": [], "dietary_options": ["vegetarian", "vegan"]}', FALSE);
+    ('dining', 'DEMO-D006', 'Closed Restaurant (Demo)', '{"demo": true, "elements": ["fire"], "zodiacs": ["Horse"], "colors": ["red"], "cuisine": "sichuan", "allergens": [], "dietary_options": ["vegetarian", "vegan"]}', FALSE),
+    ('dining', 'DEMO-D007', 'Silver Dining Room (Demo)', '{"demo": true, "elements": ["metal"], "zodiacs": ["Monkey", "Rooster"], "colors": ["silver"], "cuisine": "international"}', TRUE),
+    ('dining', 'DEMO-D008', 'Green Tea House (Demo)', '{"demo": true, "elements": ["wood"], "zodiacs": ["Rabbit", "Goat"], "colors": ["green"], "cuisine": "tea"}', TRUE),
+    ('dining', 'DEMO-D009', 'Ember Grill (Demo)', '{"demo": true, "elements": ["fire"], "zodiacs": ["Tiger", "Horse"], "colors": ["red", "orange"], "cuisine": "grill"}', TRUE),
+    ('dining', 'DEMO-D010', 'Ocean View Bistro (Demo)', '{"demo": true, "elements": ["water"], "colors": ["blue"], "cuisine": "seafood"}', TRUE);
 
 -- BEGIN PRECOMPUTED FIXTURES
 INSERT INTO my_fortunes (patron_id,fortune_date,generated_at,payload,audit_json) VALUES

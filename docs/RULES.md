@@ -1,8 +1,8 @@
 # My Fortune 第一版推荐规则
 
-规则版本 `daily-theme-v7`，提示词版本 `fortune-v5`。
+规则版本 `daily-theme-v8`，提示词默认版本 `fortune-v6`。
 
-此版本是可执行的娱乐内容方法，分数和映射由本项目定义。它采用明确的干支关系及五行主题，不执行完整旺衰、格局、调候或喜用神推断。出生资料相同可以得到相同推荐；不追求人与人之间绝对唯一。
+此版本是可执行的娱乐内容方法，选择顺序和映射由本项目定义。它采用明确的干支关系及五行主题，不执行完整旺衰、格局、调候或喜用神推断。出生资料相同可以得到相同推荐；不追求人与人之间绝对唯一。
 
 ## 计算依据
 
@@ -30,7 +30,7 @@ Python 实现参照 taibu-core 4.1.0 的公农历、节气、时区、四柱、�
 
 本版删除了日干 +2、日主 +2、生我 +1 的候选评分，以及最高分、平分日期轮换。没有随机选择“生扶 / 制约”，也不做权重抽选或分布均衡。制约分支尚未定义和实现。
 
-日运上下文继续只保留 `{"element": "wood"}`，数字、颜色和目录评分共用。`element_decision` 另保存策略、日主五行、当天五行、关系代码、推荐五行和中文理由，同时传给 Qwen，并持久化至 `audit_json.element_decision`。这取代旧版 `theme_candidates` 分数列表。
+日运上下文继续只保留 `{"element": "wood"}`，数字、颜色和目录五行筛选共用。`element_decision` 另保存策略、日主五行、当天五行、关系代码、推荐五行和中文理由，同时传给 Qwen，并持久化至 `audit_json.element_decision`。这取代旧版 `theme_candidates` 分数列表。
 
 关系代码：`generates_master` 生我、`same` 同我、`generated_by_master` 我生、`controlled_by_master` 我克、`controls_master` 克我。
 
@@ -87,22 +87,26 @@ Python 实现参照 taibu-core 4.1.0 的公农历、节气、时区、四柱、�
 
 ## 今日物品与餐厅
 
-先由 SQL 取 active=true 的目录。目录 metadata 约定如下，标签应由运营维护，拼写一致。
+复用 `fortune_catalog.metadata_json` 保存标签，无需新增列或数据库迁移。`Repository.catalog(kind)` 先通过 SQL 取得对应 kind、active=true 的真实目录；Python 解析 JSON 后执行五行硬筛选及优先排序，不依赖 Yellowbrick JSON 查询函数。标签由运营维护，不由 Qwen 临时创造。
+
+物品标签示例：
 
 ```json
 {
   "elements": ["metal"],
+  "zodiacs": ["Tiger", "Horse"],
   "colors": ["gold"],
   "materials": ["gold"],
   "category": "jewelry"
 }
 ```
 
-餐厅可以使用以下标签。elements 属于运营主题标签。
+餐厅同样可以设置五行和生肖主题：
 
 ```json
 {
   "elements": ["fire"],
+  "zodiacs": ["Horse", "Snake"],
   "colors": ["red"],
   "cuisine": "sichuan",
   "allergens": ["peanut"],
@@ -110,9 +114,26 @@ Python 实现参照 taibu-core 4.1.0 的公农历、节气、时区、四柱、�
 }
 ```
 
-当前从 active=true 的目录中按主题五行匹配 +5、当日颜色匹配 +2 排序。按分数降序、目录 ID 升序，取前 20 个候选交给 Qwen。
+| 标签 | 约定与作用 |
+| --- | --- |
+| elements | 字符串数组，只使用 wood、fire、earth、metal、water。可有多个五行；必须包含 `daily_reading.element` 才能入选。缺失或空数组的条目不入选 |
+| zodiacs | 可选字符串数组，取 Zodiac 枚举的英文名称，例如 Tiger、Horse。与已经生成的 `lucky_zodiac` 匹配时优先，不要求所有条目填写；不匹配也不因此排除 |
+| colors | 可选字符串数组，忽略大小写匹配当日幸运色，在生肖优先级相同时进一步排序 |
+| category / materials / cuisine | 描述商品品类、材质或餐厅菜系，供 Qwen 选择；程序不自动从这些字段推断五行 |
 
-Qwen 结合个人日运、当日颜色和目录标签选择一个 ID，并返回理由。程序校验 ID 必须属于提供给模型的候选，理由保存在 audit_json.catalog_decisions。没有有效候选时该客人本次生成失败。
+elements、zodiacs、colors 如有填写，必须是字符串数组；前两者还校验允许值。格式错误或未知值会使当前生成失败，并指出条目 ID 和标签字段，避免把字符串当成数组误匹配。旧版已发布 payload 的读取不增加这些校验，保留历史兼容。
+
+共享规则在 `app.rules.rank_catalog()`：
+
+1. 只保留推荐五行匹配的条目。颜色或生肖匹配不能使错误五行的条目入选。
+2. 生肖匹配者优先；同档内颜色匹配者优先；仍相同则按 entry_id 升序。
+3. 物品和餐厅各取排序后的前 20 个候选，分别交给 Qwen；没有候选时在模型调用前失败，不跨五行兜底。
+
+例如推荐五行为 metal、幸运生肖 Tiger，金耳环同时命中两个标签，优先于仅命中 metal 的银手链；仅命中 Tiger 的木制礼品会被排除。生肖优先用于候选排序和提示，不是第二个硬筛选条件，也不强制模型选择第一条。
+
+Qwen 输入包含推荐五行、已生成的幸运生肖、幸运色、排盘依据和候选描述；每个候选附 `rule_matches`，分别说明 element、zodiac、color 是否匹配，不再发送人为加分的 `rule_score`。模型可从入选池中选择任何一个 ID，并返回基于已提供信息的理由，不能虚构个人偏好。程序校验返回 ID 必须属于实际提供的最多 20 个候选。
+
+`audit_json.catalog_decisions.item / dining` 保存 `entry_id`、模型 `reason`、`required_element`、`lucky_zodiac`、`candidate_ids`、选中条目的 `rule_matches` 及 `matched_tags`。后者记录实际命中的五行、生肖和颜色，颜色使用幸运色的标准名称。物品与餐厅保持独立文件、独立并发模型调用，每人两次调用，共享 16 个在途请求的限制。任一环节失败不发布部分结果。
 
 当前版本只使用出生资料、日运和目录标签。个人偏好、过敏及饮食限制等 preferences 逻辑已移除，已有目录里的附加标签作为目录描述保留。
 
@@ -121,4 +142,4 @@ Qwen 结合个人日运、当日颜色和目录标签选择一个 ID，并返回
 五项全部成功才写入 my_fortunes。审计字段保存实际排盘、日运、生扶决策、生肖候选及选择依据、规则版本。历史结果缺少 rules_version、personalization 时兼容读取。已有成功结果默认不会因为重跑或规则升级而覆盖。
 
 
-固定 SQL 测试结果仍保留生成时的 v5 主题评分及确定性目录排名，标记 fixture-no-llm；它们是历史样例，不代表当前 v7 结果。仓库内既有演示文稿也保留旧版评分示例，当前可执行规则以本文为准。v7 保留 v6 生扶表，更新生肖算法。运行 app.seed --with-llm 或 app.precalculate 对尚未保存的客人及日期才走当前 v7 生成流程。
+固定 SQL 测试结果仍保留生成时的 v5 主题评分及确定性目录排名，标记 fixture-no-llm；它们是历史样例，不代表当前 v8 结果。目录补充生肖标签不会修改这些已发布结果的 metadata 快照。仓库内既有演示文稿也保留旧版评分示例，当前可执行规则以本文为准。v8 保留 v6 生扶表及 v7 生肖算法，更新目录筛选。运行 app.seed --with-llm 或 app.precalculate 对尚未保存的客人及日期才走当前 v8 生成流程。

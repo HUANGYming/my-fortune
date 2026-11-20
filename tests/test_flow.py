@@ -19,7 +19,8 @@ class MemoryRepository:
         return self.saved
 
     def catalog(self, kind):
-        return [CatalogEntry(id=kind, name=kind)]
+        return [CatalogEntry(id=kind, name=kind,
+                             metadata={'elements': ['wood', 'fire', 'earth', 'metal', 'water']})]
 
     def save(self, fortune, audit):
         self.saved = fortune
@@ -76,6 +77,17 @@ def test_invalid_final_selection_never_publishes_partial_fortune():
     assert repo.writes == 0
 
 
+def test_missing_element_catalog_never_publishes_partial_fortune():
+    repo = MemoryRepository()
+    repo.catalog = lambda kind: [CatalogEntry(id=kind, name=kind, metadata={'elements': ['metal']})]
+    generator = service(repo)
+    generator.llm.generate = AsyncMock()
+    with pytest.raises(ExceptionGroup):
+        asyncio.run(generator.generate(Patron(patron_id='P001'), date(2026,11,20)))
+    assert repo.writes == 0
+    generator.llm.generate.assert_not_awaited()
+
+
 def test_query_returns_missing_without_generation_and_validates_dates():
     app.dependency_overrides[authorize] = lambda: None
     app.dependency_overrides[repository] = MemoryRepository
@@ -98,7 +110,7 @@ def test_actual_taibu_through_generation_to_persisted_query():
                     birth_timezone='Asia/Shanghai', gender='male')
     result = asyncio.run(generator.generate(patron, date(2026, 11, 20)))
     assert result.personalization == 'four_pillars'
-    assert result.rules_version == 'daily-theme-v7'
+    assert result.rules_version == 'daily-theme-v8'
     assert result.lucky_number in (5, 0)
     assert repo.writes == 1
     app.dependency_overrides[authorize] = lambda: None
@@ -137,7 +149,7 @@ def test_support_decision_drives_recommendations_qwen_and_persisted_audit():
     original = generator.llm.generate
     generator.llm.generate = AsyncMock(side_effect=original)
     result = asyncio.run(generator.generate(Patron(patron_id='P001'), date(2026,11,20)))
-    assert result.rules_version == 'daily-theme-v7'
+    assert result.rules_version == 'daily-theme-v8'
     assert result.lucky_number == 3
     assert result.lucky_color.name == 'Green'
     decision = repo.audit['element_decision']
@@ -148,9 +160,15 @@ def test_support_decision_drives_recommendations_qwen_and_persisted_audit():
     assert decision['strategy'] == 'support'
     assert decision['reason']
     assert 'theme_candidates' not in repo.audit
+    for kind in ('item', 'dining'):
+        catalog_decision = repo.audit['catalog_decisions'][kind]
+        assert catalog_decision['required_element'] == 'wood'
+        assert catalog_decision['candidate_ids'] == [kind]
+        assert catalog_decision['matched_tags'] == {'elements': ['wood'], 'zodiacs': [], 'colors': []}
     for call in generator.llm.generate.await_args_list:
         assert call.args[1]['element_decision'] == decision
         assert call.args[1]['daily_reading'] == {'element': 'wood'}
+        assert call.args[1]['lucky_zodiac'] == result.lucky_zodiac.value
 
 
 def test_personal_zodiac_and_trace_reach_qwen_and_persisted_audit():

@@ -12,7 +12,7 @@ Python + FastAPI 后端，澳门日期驱动预计算，五项完整生成后持
 | app/precalculate.py | 全表每日预计算入口，支持指定日期 |
 | app/service.py | 排盘、规则五行、五项推荐、发布 |
 | app/recommendations/ | 生肖、数字、颜色、物品、餐厅五个独立文件 |
-| app/rules.py | 生扶五行决策、干支关系常量、目录筛选与排名 |
+| app/rules.py | 生扶五行决策、干支关系常量、目录五行硬筛选及生肖/颜色优先排序 |
 | app/llm.py | on-premises Qwen / vLLM 客户端 |
 | app/taibu.py | Python 计算入口，保留现有调用契约 |
 | app/calculations/ | 历法、真太阳时、四柱、黄历、岁运和干支关系的 Python 实现 |
@@ -70,7 +70,7 @@ payload 保存五项展示内容、模型/提示词/规则版本和 personalizat
 
 ## Qwen 接入
 
-app/llm.py 调用 /v1/chat/completions，每人两次调用，分别选择物品和餐厅。日运五行由 rules.py 的 daily_element_decision 按固定生扶表确定，日运数据只保留 element。输入五行、关系及选择理由作为 element_decision 传给 Qwen 并存入审计。物品和餐厅先由程序筛选，再把排名前 20 个合格候选交给 Qwen，模型可以综合日运与目录标签选择其中任意一个。输出 ID 再次校验，理由保存在 audit_json.catalog_decisions。JSON 由 Pydantic 校验，超时和临时错误有限重试，非法结果使本次任务失败。Qwen 的 chat template / reasoning parser 需确保 content 返回纯 JSON。没有配置外部模型回退。
+app/llm.py 调用 /v1/chat/completions，每人两次调用，分别选择物品和餐厅。日运五行由 rules.py 的 daily_element_decision 按固定生扶表确定，日运数据只保留 element。输入五行、关系及选择理由作为 element_decision 传给 Qwen 并存入审计。程序只保留五行匹配的有效物品和餐厅，按生肖匹配优先、颜色匹配其次、ID 排序，各取前 20 个交给 Qwen。生肖标签可选，不匹配也不因此排除；模型可以选择入选池中任意一个。没有五行候选时失败，不跨五行兜底。返回 ID 再次校验，理由、候选 ID 和命中标签保存在 audit_json.catalog_decisions。JSON 由 Pydantic 校验，超时和临时错误有限重试，非法结果使本次任务失败。默认提示词版本为 fortune-v6，已有环境若覆盖 PROMPT_VERSION 需同步更新。Qwen 的 chat template / reasoning parser 需确保 content 返回纯 JSON。没有配置外部模型回退。
 
 ## 测试与接入状态
 
@@ -86,7 +86,7 @@ uv run --locked pytest -q
 
 ## 测试数据
 
-`sql/003_test_data.sql` 包含 6 位虚构 Patron、6 件物品、6 家虚构餐厅（其中 1 家停用），以及 2026-11-19、2026-11-20 两天共 10 份完整推荐。
+`sql/003_test_data.sql` 包含 6 位虚构 Patron、10 件物品、10 家虚构餐厅（其中 1 家停用），以及 2026-11-19、2026-11-20 两天共 10 份完整推荐。有效目录对每种五行、每种 kind 都提供至少两个候选，包含多五行标签、可选生肖标签和没有生肖标签的场景。生肖标签是演示产品配置，不是传统命理结论。
 
 | Patron | 测试场景 |
 | --- | --- |
@@ -105,7 +105,7 @@ uv run --locked python -m app.seed
 
 SQL 在一个事务内导入。重复运行会替换脚本中明确列出的 DEMO 数据及两天结果，其他 ID 和其他日期的结果保留。建议在团队测试库使用。
 
-预存结果使用真实太卜排盘及生成时的 v5 规则，日运主题选择最高分候选。它们未调用 Qwen，结果标记 model=fixture-no-llm，审计字段 demo=true。这批历史数据用于 API 展示及规则测试，不代表当前 v7 结果；真实模型联调可使用 DEMO-P006，或指定尚未预存的日期。
+预存结果使用真实太卜排盘及生成时的 v5 规则，日运主题选择最高分候选。它们未调用 Qwen，结果标记 model=fixture-no-llm，审计字段 demo=true。这批历史数据用于 API 展示及规则测试，不代表当前 v8 结果；真实模型联调可使用 DEMO-P006，或指定尚未预存的日期。
 
 例如查询 `GET /v1/patrons/DEMO-P001/fortunes/2026-11-19`，或运行以下命令测试真实 Qwen 生成及写回。
 
@@ -139,6 +139,8 @@ uv run --locked python -m app.seed --with-llm --date 2026-11-21
 
 上限 16 按单个批处理进程生效，多个独立进程或其他 vLLM 调用方的请求数量需要部署侧统一协调。--batch-size 控制每页 ID 数量，和并发上限分别控制。当前仍按 ID 读取 Patron，未在这次改动中增加批量资料读取或批量结果写入。
 
-当前幸运色固定为 Red、Blue、Purple、Green、Yellow、Gold、Silver、Orange、Brown、Pink。五行分组及日期轮换见 docs/RULES.md。历史成功记录保留原结果，新生成记录使用 daily-theme-v7。生扶表沿用 v6：丙火日主遇当天木、火、土、金、水，分别推荐木、火、木、火、木；没有个人日主时使用当天五行。
+当前幸运色固定为 Red、Blue、Purple、Green、Yellow、Gold、Silver、Orange、Brown、Pink。五行分组及日期轮换见 docs/RULES.md。历史成功记录保留原结果，新生成记录使用 daily-theme-v8。生扶表沿用 v6：丙火日主遇当天木、火、土、金、水，分别推荐木、火、木、火、木；没有个人日主时使用当天五行。
 
 v7 生肖以个人年、月、日、时支的六合生肖为候选，合并去重，排除当天六冲；候选全部被排除时扩展个人三合组伙伴。与当天六合或同属三合组的候选同等优先，并列或没有当天相合关系时按日期轮换。未知时支跳过；没有个人地支时使用当天六合。选择依据作为 zodiac_decision 传给 Qwen 并持久化到审计。生肖仍完全由规则生成，每位客人仍只有两次 Qwen 调用，REST 响应格式不变。既有演示文稿保留旧版评分示例，当前规则以 docs/RULES.md 为准。
+
+v8 物品、餐厅复用 fortune_catalog.metadata_json 的 elements 数组，并新增可选 zodiacs 数组，例如 `{"elements":["metal"],"zodiacs":["Tiger","Horse"],"category":"jewelry"}`。不新增数据库列。现有实际目录在启用 v8 前须补齐 elements，否则该条目不会入选；zodiacs 可以不填。SQL 按 kind、active 取数，Python 解析 JSON 后筛选，不依赖 Yellowbrick JSON 函数。完整标签约定及示例见 docs/RULES.md。

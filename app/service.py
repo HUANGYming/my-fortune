@@ -43,20 +43,23 @@ class FortuneService:
         context["element_decision"] = daily_element_decision(facts)
 
         # 第 6 步：取规则确定的五行，不再加分、抽选或按日期打破平分。
-        # daily_reading 只保留 element，数字、颜色及目录评分共用该结果。
+        # daily_reading 只保留 element，数字、颜色及目录五行筛选共用该结果。
         element = context["element_decision"]["element"]
         context["daily_reading"] = {"element": element}
 
         # 第 7 步：个人四支六合生肖作为候选，避开当天六冲，优先当天六合或同组三合。
         # 候选全部被排除时扩展个人三合伙伴；并列按日期轮换，无个人地支时用当天六合。
         # 生肖模块将输入、候选、排除和理由存入 context.zodiac_decision，供 Qwen 及审计使用。
-        # 数字和颜色沿用日运五行及日期规则；幸运色供后续目录评分使用。
+        # 数字和颜色沿用日运五行及日期规则；幸运生肖、颜色供后续目录优先排序使用。
         zodiac = lucky_zodiac.generate(context)
         number = lucky_number.generate(context)
         color = lucky_color.generate(context)
         context["lucky_color"] = color.model_dump()
+        context["lucky_zodiac"] = zodiac.value
 
-        # 第 8 步：物品、餐厅各自使用同一份命盘、日运五行和颜色，独立并发调用 Qwen。
+        # 第 8 步：物品、餐厅强制筛选五行匹配的有效目录；生肖匹配优先，其次颜色匹配。
+        # 各取前 20 个交给 Qwen 选择真实 ID，不匹配五行的条目不会进入模型候选。
+        # 没有匹配目录则本次失败，不跨五行兜底或伪造商品、餐厅。
         # 独立上下文保存各自的选择理由；共享 QwenClient 将在途请求总数限制为 16。
         item_context = {**context, "catalog_decisions": {}}
         dining_context = {**context, "catalog_decisions": {}}

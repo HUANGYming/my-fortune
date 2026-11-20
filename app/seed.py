@@ -41,7 +41,7 @@ def main():
         failures = asyncio.run(run(target_date))
         print(f"Full-table generation finished for {target_date}. Failures: {failures}; saved results are reused.")
         raise SystemExit(1 if failures else 0)
-    print("Loaded 6 demo Patrons, 12 catalog entries and 10 fixture fortunes.")
+    print("Loaded 6 demo Patrons, 20 catalog entries and 10 fixture fortunes.")
 
 
 if __name__ == "__main__":

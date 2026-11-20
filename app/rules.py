@@ -2,7 +2,7 @@
 from datetime import date
 from app.models import CatalogEntry
 
-RULES_VERSION = "daily-theme-v7"
+RULES_VERSION = "daily-theme-v8"
 ELEMENTS = ("wood", "fire", "earth", "metal", "water")
 STEM_ELEMENTS = dict(zip("甲乙丙丁戊己庚辛壬癸", (
     "wood", "wood", "fire", "fire", "earth", "earth", "metal", "metal", "water", "water")))
@@ -58,24 +58,43 @@ def daily_element_decision(facts: dict) -> dict:
     }
 
 
-def rank_catalog(context: dict, catalog: list[CatalogEntry], kind: str) -> list[tuple[int, CatalogEntry]]:
+def catalog_matches(context: dict, entry: CatalogEntry) -> dict[str, bool]:
+    """Validate current catalog tags without changing historical payload parsing."""
+    tags = {}
+    for key, allowed in (("elements", ELEMENTS), ("zodiacs", ZODIACS), ("colors", None)):
+        values = entry.metadata.get(key, [])
+        if (not isinstance(values, list)
+                or any(not isinstance(value, str) or (allowed is not None and value not in allowed)
+                       for value in values)):
+            raise ValueError(f"Invalid {key} tags for catalog entry {entry.id}")
+        tags[key] = values
+    return {
+        "element": context["daily_reading"]["element"] in tags["elements"],
+        "zodiac": context.get("lucky_zodiac") in tags["zodiacs"],
+        "color": context["lucky_color"]["name"].casefold() in
+                 [value.casefold() for value in tags["colors"]],
+    }
+
+
+def rank_catalog(context: dict, catalog: list[CatalogEntry], kind: str) -> list[CatalogEntry]:
+    """Require the daily element; prefer zodiac, then color, then stable ID order."""
     element = context["daily_reading"]["element"]
-    color = context["lucky_color"]["name"].lower()
     candidates = []
     for entry in catalog:
-        tags = entry.metadata
-        score = 5 * (element in tags.get("elements", []))
-        score += 2 * (color in [value.lower() for value in tags.get("colors", [])])
-        candidates.append((score, entry))
+        matches = catalog_matches(context, entry)
+        if matches["element"]:
+            candidates.append((matches, entry))
     if not candidates:
-        raise ValueError(f"No eligible {kind} candidate")
-    candidates.sort(key=lambda candidate: (-candidate[0], candidate[1].id))
-    return candidates
+        raise ValueError(f"No eligible {kind} candidate for element {element}")
+    candidates.sort(key=lambda candidate: (
+        not candidate[0]["zodiac"], not candidate[0]["color"], candidate[1].id,
+    ))
+    return [entry for _, entry in candidates]
 
 
 def select_catalog(context: dict, catalog: list[CatalogEntry], kind: str) -> CatalogEntry:
     """Deterministic fixture selection; production selection is performed by Qwen."""
     candidates = rank_catalog(context, catalog, kind)
-    best = candidates[0][0]
-    tied = [entry for score, entry in candidates if score == best]
+    best = catalog_matches(context, candidates[0])
+    tied = [entry for entry in candidates if catalog_matches(context, entry) == best]
     return tied[date.fromisoformat(context["date"]).toordinal() % len(tied)]

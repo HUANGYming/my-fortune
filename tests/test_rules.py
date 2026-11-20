@@ -64,8 +64,7 @@ def test_catalog_ranking_uses_theme_and_color():
     entries = [CatalogEntry(id='a', name='Generic'),
                CatalogEntry(id='b', name='Theme', metadata={'elements': ['metal']}),
                CatalogEntry(id='c', name='Both', metadata={'elements': ['metal'], 'colors': ['gold']})]
-    assert [(score, entry.id) for score, entry in rank_catalog(context(), entries, 'item')] == [
-        (7, 'c'), (5, 'b'), (0, 'a')]
+    assert [entry.id for entry in rank_catalog(context(), entries, 'item')] == ['c', 'b']
     with pytest.raises(ValueError):
         rank_catalog(context(), [], 'dining')
 
