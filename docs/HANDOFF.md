@@ -1,5 +1,7 @@
 # On-premise agent 接手说明
 
+目录职责、完整算法及端到端示例见 [目录结构与算法开发说明](PROJECT_STRUCTURE_AND_ALGORITHMS.md)。实际数据库及 Qwen 连接由项目维护者接管，下面的接入步骤可按已有实现调整。
+
 ## 目标与已确认设计
 
 My Fortune 为 Patron 按澳门日期预计算五项个人推荐，并持久化至 Yellowbrick。前端 REST 请求读取已发布记录。后端使用 Python + FastAPI，Qwen 由内网 vLLM 提供。五项推荐保持五个独立文件，方便团队并行完善。
@@ -19,7 +21,7 @@ v8 在 fortune_catalog.metadata_json 内使用 elements 和可选 zodiacs 数组
 - 提供 --with-llm 测试数据入口。没有在仓库保存真实凭据、Patron 或餐厅记录。
 - 当前 107 项本地测试通过，覆盖真实太卜计算、生扶规则、个人四支生肖算法、目录五行硬筛选/生肖及颜色优先/非法标签/候选上限/模型 ID 校验，以及使用 Qwen 和数据库替身的完整生成链路。
 
-真实 Yellowbrick 和 Qwen 地址尚未提供，未做生产环境联调或部署。My Fortune 当前实现业务需要的八字、黄历及干支关系，范围见 docs/PYTHON_MIGRATION.md。
+实际 Yellowbrick 与 Qwen 连接实现由项目维护者自行完成和替换；本地测试主要以替身验证业务流程。My Fortune 当前实现业务需要的八字、黄历及干支关系，范围见 docs/PYTHON_MIGRATION.md。
 
 ## 第一阶段 · 跑通内网链路
 

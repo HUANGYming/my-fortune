@@ -1,6 +1,6 @@
 # My Fortune
 
-团队接手与下一步实施顺序见 [On-premise agent 接手说明](docs/HANDOFF.md)。五项推荐流程见 [英文演示文稿](docs/presentations/My_Fortune_Developer_Ten_Colors_v7.pptx)。
+完整目录职责、算法输入输出、调用链及当前版本示例见 [目录结构与算法开发说明](docs/PROJECT_STRUCTURE_AND_ALGORITHMS.md)。团队接手与下一步实施顺序见 [On-premise agent 接手说明](docs/HANDOFF.md)。五项推荐流程见 [英文演示文稿](docs/presentations/My_Fortune_Developer_Ten_Colors_v7.pptx)。
 
 Python + FastAPI 后端，澳门日期驱动预计算，五项完整生成后持久化至 Yellowbrick，REST API 查询已有结果。
 
@@ -80,7 +80,7 @@ uv run --locked pytest -q
 
 测试覆盖实际太卜的四柱、三柱和一般黄历计算，规则筛选，以及采用模型/数据库替身的生成、发布和查询流程。20 组上游快照用于验证迁移一致性，测试无需安装 Node。
 
-真实 Qwen 和 Yellowbrick 尚未提供地址凭据，需联调。规则属于第一版娱乐内容配置，正式命理方法及运营目录由团队继续完善。
+实际 Qwen 和 Yellowbrick 连接由项目维护者自行完成和替换，业务接口约定见目录结构与算法开发说明。规则属于第一版娱乐内容配置，正式命理方法及运营目录由团队继续完善。
 
 上游版本及许可见 vendor/UPSTREAM.md。参考 [Yellowbrick Python 连接](https://docs.yellowbrick.com/7.4.4/tutorial/connecting_with_Python.html)、[vLLM 接口](https://docs.vllm.ai/en/stable/serving/openai_compatible_server/)。
 
