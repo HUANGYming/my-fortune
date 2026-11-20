@@ -1,6 +1,6 @@
 # My Fortune
 
-团队接手与下一步实施顺序见 [On-premise agent 接手说明](docs/HANDOFF.md)。五项推荐流程见 [英文演示文稿](docs/presentations/My_Fortune_7_Slide_Pipelines_v4.pptx)。
+团队接手与下一步实施顺序见 [On-premise agent 接手说明](docs/HANDOFF.md)。五项推荐流程见 [英文演示文稿](docs/presentations/My_Fortune_Developer_Guide_v5.pptx)。
 
 Python + FastAPI 后端，澳门日期驱动预计算，五项完整生成后持久化至 Yellowbrick，REST API 查询已有结果。
 
