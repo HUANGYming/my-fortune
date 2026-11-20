@@ -1,3 +1,4 @@
+import asyncio
 from datetime import date, datetime, timezone
 from app.config import Settings
 from app.llm import QwenClient
@@ -17,13 +18,13 @@ class FortuneService:
 
     async def generate(self, patron: Patron, target_date: date) -> Fortune:
         # 第 1 步：查询该客人、该日期的已发布结果。存在时直接复用，支持批任务安全重跑。
-        existing = self.repository.get_fortune(patron.patron_id, target_date)
+        existing = await asyncio.to_thread(self.repository.get_fortune, patron.patron_id, target_date)
         if existing:
             return existing
 
         # 第 2 步：读取有效物品和餐厅目录。两类目录都需要有候选才能生成完整推荐。
-        item_catalog = self.repository.catalog("item")
-        dining_catalog = self.repository.catalog("dining")
+        item_catalog = await asyncio.to_thread(self.repository.catalog, "item")
+        dining_catalog = await asyncio.to_thread(self.repository.catalog, "dining")
         if not item_catalog or not dining_catalog:
             raise ValueError("Both item and dining catalogs require active entries")
 
@@ -67,13 +68,13 @@ class FortuneService:
             model=self.settings.qwen_model, prompt_version=self.settings.prompt_version,
             rules_version=RULES_VERSION, personalization=facts["personalization"],
         )
-        self.repository.save(fortune, {"facts": facts, "reading": {"element": element}, "rules_version": RULES_VERSION,
+        await asyncio.to_thread(self.repository.save, fortune, {"facts": facts, "reading": {"element": element}, "rules_version": RULES_VERSION,
                                      "theme_candidates": context["theme_candidates"],
                                      "catalog_decisions": context["catalog_decisions"]})
 
         # 第 10 步：重新读取数据库中的最终结果并返回。
         # 并发任务可能已先完成发布，因此以数据库实际保存的那一份为准。
-        saved = self.repository.get_fortune(patron.patron_id, target_date)
+        saved = await asyncio.to_thread(self.repository.get_fortune, patron.patron_id, target_date)
         if saved is None:
             raise RuntimeError("Published fortune could not be read")
         return saved

@@ -3,7 +3,7 @@ import json
 from typing import TypeVar
 import httpx
 from pydantic import BaseModel
-from app.config import Settings
+from app.config import CONCURRENCY_LIMIT, Settings
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -11,6 +11,7 @@ T = TypeVar("T", bound=BaseModel)
 class QwenClient:
     def __init__(self, settings: Settings):
         self.settings = settings
+        self._request_slots = asyncio.Semaphore(CONCURRENCY_LIMIT)
 
     async def generate(self, task: str, context: dict, schema: type[T]) -> T:
         headers = {}
@@ -34,10 +35,13 @@ class QwenClient:
         async with httpx.AsyncClient(timeout=self.settings.request_timeout) as client:
             for attempt in range(3):
                 try:
-                    response = await client.post(
-                        self.settings.qwen_base_url.rstrip("/") + "/chat/completions",
-                        headers=headers, json=payload,
-                    )
+                    # All Patrons in this batch share the same client and request limit.
+                    # Release the slot before retry backoff so other requests can progress.
+                    async with self._request_slots:
+                        response = await client.post(
+                            self.settings.qwen_base_url.rstrip("/") + "/chat/completions",
+                            headers=headers, json=payload,
+                        )
                     response.raise_for_status()
                     content = response.json()["choices"][0]["message"]["content"]
                     return schema.model_validate_json(content)

@@ -4,7 +4,7 @@ import asyncio
 from datetime import date, datetime
 import logging
 from zoneinfo import ZoneInfo
-from app.config import get_settings
+from app.config import CONCURRENCY_LIMIT, get_settings
 from app.repository import Repository
 from app.service import FortuneService
 
@@ -17,17 +17,43 @@ async def run(target_date: date, batch_size: int = 500) -> int:
     service = FortuneService(settings, repo)
     failures = 0
     processed = 0
-    for patron_id in repo.iter_patron_ids(batch_size):
-        processed += 1
-        try:
-            patron = repo.get_patron(patron_id)
-            if patron is None:
-                raise ValueError("Patron not found")
-            await service.generate(patron, target_date)
-            logger.info("Fortune available for patron=%s date=%s", patron_id, target_date)
-        except Exception:
-            failures += 1
-            logger.exception("Generation failed for patron=%s date=%s", patron_id, target_date)
+    queue = asyncio.Queue(maxsize=CONCURRENCY_LIMIT * 2)
+
+    async def produce():
+        # Advance the paginated synchronous iterator off the event loop.
+        # Returning None avoids propagating StopIteration through an asyncio Future.
+        patron_ids = iter(repo.iter_patron_ids(batch_size))
+        while True:
+            patron_id = await asyncio.to_thread(next, patron_ids, None)
+            if patron_id is None:
+                break
+            await queue.put(patron_id)
+        for _ in range(CONCURRENCY_LIMIT):
+            await queue.put(None)
+
+    async def consume():
+        nonlocal processed, failures
+        while True:
+            patron_id = await queue.get()
+            if patron_id is None:
+                return
+            processed += 1
+            try:
+                patron = await asyncio.to_thread(repo.get_patron, patron_id)
+                if patron is None:
+                    raise ValueError("Patron not found")
+                await service.generate(patron, target_date)
+                logger.info("Fortune available for patron=%s date=%s", patron_id, target_date)
+            except Exception:
+                failures += 1
+                logger.exception("Generation failed for patron=%s date=%s", patron_id, target_date)
+
+    # Bound both active work and queued IDs, even for millions of source Patrons.
+    # TaskGroup cancels the batch if source pagination fails or the job is cancelled.
+    async with asyncio.TaskGroup() as tasks:
+        tasks.create_task(produce())
+        for _ in range(CONCURRENCY_LIMIT):
+            tasks.create_task(consume())
     logger.info("Batch finished date=%s processed=%s succeeded=%s failed=%s",
                 target_date, processed, processed - failures, failures)
     return failures
