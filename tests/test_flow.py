@@ -98,7 +98,7 @@ def test_actual_taibu_through_generation_to_persisted_query():
                     birth_timezone='Asia/Shanghai', gender='male')
     result = asyncio.run(generator.generate(patron, date(2026, 11, 20)))
     assert result.personalization == 'four_pillars'
-    assert result.rules_version == 'daily-theme-v5'
+    assert result.rules_version == 'daily-theme-v6'
     assert result.lucky_number in (5, 0)
     assert repo.writes == 1
     app.dependency_overrides[authorize] = lambda: None
@@ -124,6 +124,33 @@ def test_only_item_and_dining_call_qwen():
     assert 'Choose one dining' in calls[1].args[0]
     assert calls[0].args[1]['daily_reading'] == {'element':'wood'}
     assert repo.audit['reading'] == {'element':'wood'}
+
+
+def test_support_decision_drives_recommendations_qwen_and_persisted_audit():
+    repo = MemoryRepository()
+    generator = service(repo)
+    generator.taibu.context = AsyncMock(return_value={
+        'personalization': 'four_pillars',
+        'coordinates': {'day_stem': '戊', 'day_branch': '戌',
+                        'day_master': '丙', 'natal': []},
+    })
+    original = generator.llm.generate
+    generator.llm.generate = AsyncMock(side_effect=original)
+    result = asyncio.run(generator.generate(Patron(patron_id='P001'), date(2026,11,20)))
+    assert result.rules_version == 'daily-theme-v6'
+    assert result.lucky_number == 3
+    assert result.lucky_color.name == 'Green'
+    decision = repo.audit['element_decision']
+    assert decision['day_master_element'] == 'fire'
+    assert decision['day_element'] == 'earth'
+    assert decision['relationship'] == 'generated_by_master'
+    assert decision['element'] == repo.audit['reading']['element'] == 'wood'
+    assert decision['strategy'] == 'support'
+    assert decision['reason']
+    assert 'theme_candidates' not in repo.audit
+    for call in generator.llm.generate.await_args_list:
+        assert call.args[1]['element_decision'] == decision
+        assert call.args[1]['daily_reading'] == {'element': 'wood'}
 
 
 def test_item_and_dining_run_independently_and_concurrently():

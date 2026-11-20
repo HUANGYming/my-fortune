@@ -5,7 +5,7 @@ from app.llm import QwenClient
 from app.models import Fortune, Patron
 from app.repository import Repository
 from app.taibu import TaibuClient
-from app.rules import RULES_VERSION, theme_candidates, select_daily_element
+from app.rules import RULES_VERSION, daily_element_decision
 from app.recommendations import lucky_zodiac, lucky_number, lucky_color, lucky_item, lucky_dining
 
 
@@ -37,13 +37,14 @@ class FortuneService:
         profile = patron.model_dump(mode="json", exclude={"patron_id"})
         context = {"date": target_date.isoformat(), "profile": profile, "facts": facts}
 
-        # 第 5 步：按日干五行 +2、日主五行 +2、生扶日主的五行 +1 计算候选得分。
-        # 评分和后续选择均使用固定规则。
-        context["theme_candidates"] = theme_candidates(facts)
+        # 第 5 步：识别当天日干与个人日主的五行关系，执行固定生扶策略。
+        # 生我、我生、克我 -> 生我五行；同我、我克 -> 日主五行。
+        # 无日主时使用当天五行。决策含输入、关系和理由，供 Qwen 及审计使用。
+        context["element_decision"] = daily_element_decision(facts)
 
-        # 第 6 步：选择得分最高的五行；平分时按目标日期轮换。
+        # 第 6 步：取规则确定的五行，不再加分、抽选或按日期打破平分。
         # daily_reading 只保留 element，数字、颜色及目录评分共用该结果。
-        element = select_daily_element(context["theme_candidates"], target_date)
+        element = context["element_decision"]["element"]
         context["daily_reading"] = {"element": element}
 
         # 第 7 步：按地支关系选择生肖，按日运五行与日期选择数字及颜色。
@@ -76,7 +77,7 @@ class FortuneService:
             rules_version=RULES_VERSION, personalization=facts["personalization"],
         )
         await asyncio.to_thread(self.repository.save, fortune, {"facts": facts, "reading": {"element": element}, "rules_version": RULES_VERSION,
-                                     "theme_candidates": context["theme_candidates"],
+                                     "element_decision": context["element_decision"],
                                      "catalog_decisions": context["catalog_decisions"]})
 
         # 第 10 步：重新读取数据库中的最终结果并返回。

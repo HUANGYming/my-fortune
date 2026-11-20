@@ -1,7 +1,7 @@
 import pytest
-from app.models import CatalogEntry
-from app.rules import select_catalog, theme_candidates, select_daily_element
 from datetime import date
+from app.models import CatalogEntry
+from app.rules import select_catalog, daily_element_decision
 from app.recommendations import lucky_color, lucky_number, lucky_zodiac
 
 
@@ -16,9 +16,39 @@ def context():
     }
 
 
-def test_theme_candidates_use_daily_and_personal_stems():
-    candidates = theme_candidates(context()['facts'])
-    assert {candidate['element'] for candidate in candidates} == {'wood', 'fire'}
+@pytest.mark.parametrize(('master', 'expected'), [
+    ('甲', ('wood', 'water', 'wood', 'water', 'water')),
+    ('丙', ('wood', 'fire', 'wood', 'fire', 'wood')),
+    ('戊', ('fire', 'fire', 'earth', 'fire', 'earth')),
+    ('庚', ('metal', 'earth', 'earth', 'metal', 'earth')),
+    ('壬', ('metal', 'water', 'metal', 'metal', 'water')),
+])
+def test_support_policy_for_every_personal_and_daily_element(master, expected):
+    # Each row exercises all five daily elements, including 泄、耗、克.
+    for stem, element in zip('甲丙戊庚壬', expected):
+        decision = daily_element_decision({'coordinates': {
+            'day_stem': stem, 'day_master': master,
+        }})
+        assert decision['strategy'] == 'support'
+        assert decision['element'] == element
+        assert decision['reason']
+
+
+@pytest.mark.parametrize(('stem', 'relationship'), [
+    ('甲', 'generates_master'), ('丙', 'same'),
+    ('戊', 'generated_by_master'), ('庚', 'controlled_by_master'),
+    ('壬', 'controls_master'),
+])
+def test_support_decision_records_the_relationship_for_audit(stem, relationship):
+    decision = daily_element_decision({'coordinates': {
+        'day_stem': stem, 'day_master': '丙',
+    }})
+    assert decision['day_master_element'] == 'fire'
+    assert decision['relationship'] == relationship
+    # Yin/Yang stems of the same element follow the same editorial policy.
+    assert daily_element_decision({'coordinates': {
+        'day_stem': stem, 'day_master': '丁',
+    }}) == decision
 
 
 def test_fields_share_element_and_avoid_daily_clash():
@@ -51,17 +81,16 @@ def test_color_uses_theme_and_date_independently_of_legacy_preferences():
     assert lucky_color.generate(data) == expected
 
 
-def test_rule_element_uses_highest_score_and_rotates_ties():
-    facts = {'coordinates': {'day_stem':'戊', 'day_master':'庚'}}
-    candidates = theme_candidates(facts)
-    assert select_daily_element(candidates,date(2026,11,20)) == 'earth'
-    tied = theme_candidates({'coordinates':{'day_stem':'戊','day_master':'丁'}})
-    first = select_daily_element(tied,date(2026,11,20))
-    second = select_daily_element(tied,date(2026,11,21))
-    assert {first,second} == {'fire','earth'}
-    assert select_daily_element(tied,date(2026,11,20)) == first
-    with pytest.raises(ValueError):
-        select_daily_element([],date(2026,11,20))
+@pytest.mark.parametrize('coordinates', [
+    {'day_stem': '戊'}, {'day_stem': '戊', 'day_master': None},
+])
+def test_missing_day_master_uses_daily_element_without_personal_support(coordinates):
+    decision = daily_element_decision({'coordinates': coordinates})
+    assert decision['strategy'] == 'general'
+    assert decision['day_master_element'] is None
+    assert decision['day_element'] == decision['element'] == 'earth'
+    assert decision['relationship'] is None
+    assert decision['reason']
 
 
 def test_color_palette_uses_exactly_the_ten_product_colors():

@@ -12,7 +12,7 @@ Python + FastAPI 后端，澳门日期驱动预计算，五项完整生成后持
 | app/precalculate.py | 全表每日预计算入口，支持指定日期 |
 | app/service.py | 排盘、规则五行、五项推荐、发布 |
 | app/recommendations/ | 生肖、数字、颜色、物品、餐厅五个独立文件 |
-| app/rules.py | 主题候选、关系评分、目录筛选与排名 |
+| app/rules.py | 生扶五行决策、生肖关系评分、目录筛选与排名 |
 | app/llm.py | on-premises Qwen / vLLM 客户端 |
 | app/taibu.py | Python 计算入口，保留现有调用契约 |
 | app/calculations/ | 历法、真太阳时、四柱、黄历、岁运和干支关系的 Python 实现 |
@@ -70,7 +70,7 @@ payload 保存五项展示内容、模型/提示词/规则版本和 personalizat
 
 ## Qwen 接入
 
-app/llm.py 调用 /v1/chat/completions，每人两次调用，分别选择物品和餐厅。日运五行由 rules.py 按固定分数选出，日运数据只保留 element。物品和餐厅先由程序筛选，再把排名前 20 个合格候选交给 Qwen，模型可以综合日运与目录标签选择其中任意一个。输出 ID 再次校验，理由保存在 audit_json.catalog_decisions。JSON 由 Pydantic 校验，超时和临时错误有限重试，非法结果使本次任务失败。Qwen 的 chat template / reasoning parser 需确保 content 返回纯 JSON。没有配置外部模型回退。
+app/llm.py 调用 /v1/chat/completions，每人两次调用，分别选择物品和餐厅。日运五行由 rules.py 的 daily_element_decision 按固定生扶表确定，日运数据只保留 element。输入五行、关系及选择理由作为 element_decision 传给 Qwen 并存入审计。物品和餐厅先由程序筛选，再把排名前 20 个合格候选交给 Qwen，模型可以综合日运与目录标签选择其中任意一个。输出 ID 再次校验，理由保存在 audit_json.catalog_decisions。JSON 由 Pydantic 校验，超时和临时错误有限重试，非法结果使本次任务失败。Qwen 的 chat template / reasoning parser 需确保 content 返回纯 JSON。没有配置外部模型回退。
 
 ## 测试与接入状态
 
@@ -105,7 +105,7 @@ uv run --locked python -m app.seed
 
 SQL 在一个事务内导入。重复运行会替换脚本中明确列出的 DEMO 数据及两天结果，其他 ID 和其他日期的结果保留。建议在团队测试库使用。
 
-预存结果使用真实太卜排盘及现有五项规则。日运主题选择最高分候选，未调用 Qwen，结果标记 model=fixture-no-llm，审计字段 demo=true。这批数据用于 API 展示及规则测试；真实模型联调可使用 DEMO-P006，或指定尚未预存的日期。
+预存结果使用真实太卜排盘及生成时的 v5 规则，日运主题选择最高分候选。它们未调用 Qwen，结果标记 model=fixture-no-llm，审计字段 demo=true。这批历史数据用于 API 展示及规则测试，不代表当前 v6 生扶结果；真实模型联调可使用 DEMO-P006，或指定尚未预存的日期。
 
 例如查询 `GET /v1/patrons/DEMO-P001/fortunes/2026-11-19`，或运行以下命令测试真实 Qwen 生成及写回。
 
@@ -139,4 +139,4 @@ uv run --locked python -m app.seed --with-llm --date 2026-11-21
 
 上限 16 按单个批处理进程生效，多个独立进程或其他 vLLM 调用方的请求数量需要部署侧统一协调。--batch-size 控制每页 ID 数量，和并发上限分别控制。当前仍按 ID 读取 Patron，未在这次改动中增加批量资料读取或批量结果写入。
 
-当前幸运色固定为 Red、Blue、Purple、Green、Yellow、Gold、Silver、Orange、Brown、Pink。五行分组及日期轮换见 docs/RULES.md。历史成功记录保留原结果，新生成记录使用 daily-theme-v5。
+当前幸运色固定为 Red、Blue、Purple、Green、Yellow、Gold、Silver、Orange、Brown、Pink。五行分组及日期轮换见 docs/RULES.md。历史成功记录保留原结果，新生成记录使用 daily-theme-v6 生扶规则。丙火日主遇当天木、火、土、金、水，分别推荐木、火、木、火、木。没有个人日主时使用当天五行。既有演示文稿保留旧版评分示例，当前规则以 docs/RULES.md 为准。
