@@ -68,6 +68,20 @@ payload 保存五项展示内容、模型/提示词/规则版本和 personalizat
 
 查询不触发计算，尚未生成返回 404，数据库故障返回 503。业务接口采用 X-API-Key，供可信内部服务调用。客户网关需按登录身份授权 Patron 范围。生成入口为 CLI，当前没有后台 HTTP 任务接口。
 
+### API 数据库连接池
+
+API 在 FastAPI lifespan 启动时创建线程安全连接池，停止并完成在途请求后关闭。每次查询借用连接，事务结束后归还；不再每次请求重新建立物理连接。API 使用 `ApiSettings`，只要求 DATABASE_DSN 和 API_KEY，不要求 QWEN_BASE_URL 或 QWEN_MODEL。
+
+| 配置 | 默认值 | 含义 |
+| --- | --- | --- |
+| API_DB_POOL_MIN | 2 | 初始连接数及池保留的空闲连接数 |
+| API_DB_POOL_MAX | 10 | 单个 API 进程最多借出的连接数 |
+| API_DB_POOL_WAIT_TIMEOUT | 2 | 等待借用名额的最长秒数；不等同于 SQL 查询超时 |
+
+每次借用先用 SELECT 1 检查连接，并结束检查事务；失效连接丢弃后再尝试一次。实际业务 SQL 不自动重放。查询异常会回滚，连接故障会丢弃连接，名额始终释放。池满且等待超时返回 503。启动时不能建立初始连接则 API 启动失败。
+
+连接池按进程独立，例如 4 个 API 进程最多合计 40 个 API 连接，还需另计计算 Worker 的连接。Worker 保留原来的独立连接上下文，不使用 API 的池。自定义连接实现时，API 对应 `DatabasePool`，Worker 对应 `connection()`；Repository 支持注入 `connection_factory`，业务 SQL 保持共用。
+
 ## Qwen 接入
 
 app/llm.py 调用 /v1/chat/completions，每人两次调用，分别选择物品和餐厅。日运五行由 rules.py 的 daily_element_decision 按固定生扶表确定，日运数据只保留 element。输入五行、关系及选择理由作为 element_decision 传给 Qwen 并存入审计。程序只保留五行匹配的有效物品和餐厅，按生肖匹配优先、颜色匹配其次、ID 排序，各取前 20 个交给 Qwen。生肖标签可选，不匹配也不因此排除；模型可以选择入选池中任意一个。没有五行候选时失败，不跨五行兜底。返回 ID 再次校验，理由、候选 ID 和命中标签保存在 audit_json.catalog_decisions。JSON 由 Pydantic 校验，超时和临时错误有限重试，非法结果使本次任务失败。默认提示词版本为 fortune-v6，已有环境若覆盖 PROMPT_VERSION 需同步更新。Qwen 的 chat template / reasoning parser 需确保 content 返回纯 JSON。没有配置外部模型回退。

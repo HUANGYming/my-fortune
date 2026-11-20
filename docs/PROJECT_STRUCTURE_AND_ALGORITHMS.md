@@ -73,7 +73,7 @@ my-fortune/
 │   ├── models.py                  # Patron、Fortune、CatalogEntry 等数据模型
 │   ├── config.py                  # 配置对象、版本与并发上限
 │   ├── repository.py              # 业务数据读写方法
-│   ├── database.py                # 数据库连接与事务上下文
+│   ├── database.py                # API 连接池与 Worker 独立事务上下文
 │   ├── llm.py                     # Qwen/vLLM 调用适配
 │   ├── taibu.py                   # 保留旧名称的原生 Python 计算入口
 │   ├── seed.py                    # 虚构测试数据导入入口
@@ -923,6 +923,12 @@ iter_patron_ids(batch_size)
 
 目前没有用于生成任务的 POST 路由；生成入口为 CLI 和外部调度器。
 
+API 和计算 Worker 是两个独立运行单元。API 使用独立的 `ApiSettings`，只要求数据库和鉴权配置，不依赖模型配置。FastAPI lifespan 启动时建立 `DatabasePool`，停止时关闭，每个服务进程独立持有自己的池。
+
+默认 API_DB_POOL_MIN=2、API_DB_POOL_MAX=10、API_DB_POOL_WAIT_TIMEOUT=2 秒。最后一个参数只限制等待借用名额，不限制 SQL 执行时间。池满且等待超时返回 503；初始连接无法建立则启动失败。借用时额外执行 SELECT 1 检查，再执行业务查询；检查及业务事务分别正常结束，不保留空闲事务。
+
+失效空闲连接会丢弃并重试借用一次；业务 SQL 不自动重放。普通调用异常会回滚，连接故障会丢弃连接并释放名额。多个进程的上限要累加，另计计算 Worker 的连接。该改动不改变推荐规则版本。
+
 ## 15. 连接替换的接口约定
 
 实际连接由项目维护者自行修改。只要保留以下契约，推荐算法不需要理解连接细节。
@@ -938,6 +944,8 @@ iter_patron_ids(batch_size)
 | `save(fortune, audit)` | 完整结果和审计 | 原子保存，不覆盖相同客人/日期的成功结果 |
 
 数据库连接上下文位于 `database.py`，业务 SQL 和字段映射位于 `repository.py`。当前接口是同步方法，服务使用 `asyncio.to_thread()` 调用；如果维护者改成异步驱动，需要同步调整调用方，避免把 coroutine 当作结果。
+
+API 构造 `Repository(api_settings, connection_factory=pool.connection)`，使查询借用连接池；Worker 构造 `Repository(settings)`，继续通过独立 `connection(settings)` 建立和关闭连接。替换数据库实现时可沿用该注入点，无需把连接池放进算法层。API 同步路由使用 FastAPI 的线程执行机制。
 
 `metadata_json` 在 Repository 中解析为 Python 字典。应保持真实 ID、`active` 过滤、两类目录隔离，以及结果与审计同事务保存等业务语义。
 
@@ -975,6 +983,7 @@ async def generate(task: str, context: dict, schema: type[T]) -> T:
 | `test_flow.py` | 五项生成、审计保存、幂等、失败不发布、查询链路 |
 | `test_precalculate.py` | 全表分页、16 并发、单客人失败继续 |
 | `test_llm_concurrency.py` | 共享请求信号量及相关客户端行为 |
+| `test_database_pool.py` | API 池生命周期、复用、健康检查、异常回滚、池满、失效连接、查询及 Worker 隔离 |
 | `test_seed_data.py` | SQL 重复导入、历史快照、五行候选覆盖 |
 
 运行现有测试：
@@ -983,7 +992,7 @@ async def generate(task: str, context: dict, schema: type[T]) -> T:
 uv run --locked pytest -q
 ```
 
-当前测试套件为 107 项。真实命盘计算会执行，服务流程中的数据库和模型主要使用替身；本地 SQLite 用于检查 SQL 测试数据，不作为实际 Yellowbrick 连接实现的替代说明。
+当前测试套件为 116 项。真实命盘计算会执行，服务流程中的数据库和模型主要使用替身；本地 SQLite 用于检查 SQL 测试数据，不作为实际 Yellowbrick 连接实现的替代说明。
 
 ### 16.2 建议阅读顺序
 

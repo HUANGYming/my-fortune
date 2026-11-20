@@ -1,18 +1,23 @@
 """Map Yellowbrick rows to domain models and publish complete daily results."""
 import json
 from datetime import date
-from app.config import Settings
+from app.config import ApiSettings
 from app.database import connection
 from app.models import CatalogEntry, Fortune, Patron
 
 
 class Repository:
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: ApiSettings, connection_factory=None):
         self.settings = settings
+        self._connection_factory = connection_factory
+
+    def _connection(self):
+        # API injects pooled checkout; workers retain the standalone connection path.
+        return self._connection_factory() if self._connection_factory else connection(self.settings)
 
     def get_patron(self, patron_id: str) -> Patron | None:
         """Read birth inputs from the source table without inventing missing values."""
-        with connection(self.settings) as conn, conn.cursor() as cursor:
+        with self._connection() as conn, conn.cursor() as cursor:
             cursor.execute(
                 "SELECT patron_id, birth_date, birth_hour, gender, birth_minute, birth_timezone, longitude "
                 "FROM fortune_patron_source WHERE patron_id = %s", (patron_id,),
@@ -29,7 +34,7 @@ class Repository:
             raise ValueError("batch_size must be positive")
         after = None
         while True:
-            with connection(self.settings) as conn, conn.cursor() as cursor:
+            with self._connection() as conn, conn.cursor() as cursor:
                 if after is None:
                     cursor.execute(
                         "SELECT DISTINCT patron_id FROM fortune_patron_source "
@@ -49,7 +54,7 @@ class Repository:
 
     def get_fortune(self, patron_id: str, target_date: date) -> Fortune | None:
         """Read a stored result; a missing row does not trigger generation."""
-        with connection(self.settings) as conn, conn.cursor() as cursor:
+        with self._connection() as conn, conn.cursor() as cursor:
             cursor.execute(
                 "SELECT payload FROM my_fortunes WHERE patron_id = %s AND fortune_date = %s "
                 "ORDER BY generated_at DESC LIMIT 1", (patron_id, target_date),
@@ -59,7 +64,7 @@ class Repository:
 
     def catalog(self, kind: str) -> list[CatalogEntry]:
         """Load active items or restaurants; rules.py applies element/tag filtering."""
-        with connection(self.settings) as conn, conn.cursor() as cursor:
+        with self._connection() as conn, conn.cursor() as cursor:
             cursor.execute(
                 "SELECT entry_id, name, metadata_json FROM fortune_catalog "
                 "WHERE kind = %s AND active = true ORDER BY entry_id", (kind,),
@@ -71,7 +76,7 @@ class Repository:
         """Publish the result and audit together, preserving any existing success."""
         # Serialize the short publication transaction across writers, including retries.
         # All writers must use this path. Verify LOCK support on the target YB version.
-        with connection(self.settings) as conn, conn.cursor() as cursor:
+        with self._connection() as conn, conn.cursor() as cursor:
             cursor.execute("LOCK TABLE my_fortunes IN EXCLUSIVE MODE")
             cursor.execute(
                 "SELECT 1 FROM my_fortunes WHERE patron_id = %s AND fortune_date = %s",

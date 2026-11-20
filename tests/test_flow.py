@@ -1,12 +1,20 @@
 import asyncio
 from datetime import date
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 import pytest
 from fastapi.testclient import TestClient
-from app.config import Settings
+from app.config import Settings, ApiSettings
 from app.main import app, authorize, repository
 from app.models import CatalogEntry, Patron
 from app.service import FortuneService
+
+
+@pytest.fixture(autouse=True)
+def api_lifespan_dependencies(monkeypatch):
+    # These workflow tests override the repository, so no real database is needed.
+    monkeypatch.setattr('app.main.get_api_settings', lambda: ApiSettings(
+        _env_file=None, database_dsn='unused', api_key='test'))
+    monkeypatch.setattr('app.main.DatabasePool', Mock())
 
 
 class MemoryRepository:

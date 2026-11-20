@@ -1,26 +1,41 @@
 """Expose authenticated REST reads of precomputed fortunes and a liveness endpoint."""
 from datetime import date, datetime
+from contextlib import asynccontextmanager
+import asyncio
 import logging
 import secrets
 from zoneinfo import ZoneInfo
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.security import APIKeyHeader
-from app.config import Settings, get_settings
+from app.config import ApiSettings, get_api_settings
+from app.database import DatabasePool
 from app.models import Fortune
 from app.repository import Repository
 
-app = FastAPI(title="My Fortune API", version="0.1.0")
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    # Each server process owns its pool; no Qwen configuration is required here.
+    pool = await asyncio.to_thread(DatabasePool, get_api_settings())
+    application.state.database_pool = pool
+    try:
+        yield
+    finally:
+        await asyncio.to_thread(pool.close)
+        del application.state.database_pool
+
+
+app = FastAPI(title="My Fortune API", version="0.1.0", lifespan=lifespan)
 key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 logger = logging.getLogger(__name__)
 
 
-def authorize(key: str | None = Depends(key_header), settings: Settings = Depends(get_settings)):
+def authorize(key: str | None = Depends(key_header), settings: ApiSettings = Depends(get_api_settings)):
     if key is None or not secrets.compare_digest(key, settings.api_key.get_secret_value()):
         raise HTTPException(status_code=401, detail="Invalid API key")
 
 
-def repository(settings: Settings = Depends(get_settings)) -> Repository:
-    return Repository(settings)
+def repository(request: Request, settings: ApiSettings = Depends(get_api_settings)) -> Repository:
+    return Repository(settings, connection_factory=request.app.state.database_pool.connection)
 
 
 @app.get("/health/live")
