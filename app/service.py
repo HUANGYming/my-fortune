@@ -47,8 +47,10 @@ class FortuneService:
         element = context["element_decision"]["element"]
         context["daily_reading"] = {"element": element}
 
-        # 第 7 步：按地支关系选择生肖，按日运五行与日期选择数字及颜色。
-        # 将幸运色加入 context，供后续物品和餐厅的目录评分使用。
+        # 第 7 步：个人四支六合生肖作为候选，避开当天六冲，优先当天六合或同组三合。
+        # 候选全部被排除时扩展个人三合伙伴；并列按日期轮换，无个人地支时用当天六合。
+        # 生肖模块将输入、候选、排除和理由存入 context.zodiac_decision，供 Qwen 及审计使用。
+        # 数字和颜色沿用日运五行及日期规则；幸运色供后续目录评分使用。
         zodiac = lucky_zodiac.generate(context)
         number = lucky_number.generate(context)
         color = lucky_color.generate(context)
@@ -78,6 +80,7 @@ class FortuneService:
         )
         await asyncio.to_thread(self.repository.save, fortune, {"facts": facts, "reading": {"element": element}, "rules_version": RULES_VERSION,
                                      "element_decision": context["element_decision"],
+                                     "zodiac_decision": context["zodiac_decision"],
                                      "catalog_decisions": context["catalog_decisions"]})
 
         # 第 10 步：重新读取数据库中的最终结果并返回。

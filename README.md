@@ -12,7 +12,7 @@ Python + FastAPI 后端，澳门日期驱动预计算，五项完整生成后持
 | app/precalculate.py | 全表每日预计算入口，支持指定日期 |
 | app/service.py | 排盘、规则五行、五项推荐、发布 |
 | app/recommendations/ | 生肖、数字、颜色、物品、餐厅五个独立文件 |
-| app/rules.py | 生扶五行决策、生肖关系评分、目录筛选与排名 |
+| app/rules.py | 生扶五行决策、干支关系常量、目录筛选与排名 |
 | app/llm.py | on-premises Qwen / vLLM 客户端 |
 | app/taibu.py | Python 计算入口，保留现有调用契约 |
 | app/calculations/ | 历法、真太阳时、四柱、黄历、岁运和干支关系的 Python 实现 |
@@ -56,7 +56,7 @@ uv run --locked python -m app.precalculate --date 2026-11-20
 
 Python 排盘与黄历计算，规则确定每日五行并生成生肖、数字、颜色，Qwen 选择物品及餐厅，最后完整保存。
 
-payload 保存五项展示内容、模型/提示词/规则版本和 personalization（general、three_pillars、four_pillars）。audit_json 保存原始计算结果与日运依据。使用 VARCHAR 保存 JSON，避免依赖 JSONB 或 ON CONFLICT。
+payload 保存五项展示内容、模型/提示词/规则版本和 personalization（general、three_pillars、four_pillars）。audit_json 保存原始计算结果、日运依据和生肖候选决策。使用 VARCHAR 保存 JSON，避免依赖 JSONB 或 ON CONFLICT。
 
 发布事务使用 EXCLUSIVE 表锁，检查并插入，所有写入方须走同一路径。目标 Yellowbrick 的锁语法、权限和并发行为尚需真实版本联调，仓库未声称已验证该部分。模型调用在事务外执行。
 
@@ -105,7 +105,7 @@ uv run --locked python -m app.seed
 
 SQL 在一个事务内导入。重复运行会替换脚本中明确列出的 DEMO 数据及两天结果，其他 ID 和其他日期的结果保留。建议在团队测试库使用。
 
-预存结果使用真实太卜排盘及生成时的 v5 规则，日运主题选择最高分候选。它们未调用 Qwen，结果标记 model=fixture-no-llm，审计字段 demo=true。这批历史数据用于 API 展示及规则测试，不代表当前 v6 生扶结果；真实模型联调可使用 DEMO-P006，或指定尚未预存的日期。
+预存结果使用真实太卜排盘及生成时的 v5 规则，日运主题选择最高分候选。它们未调用 Qwen，结果标记 model=fixture-no-llm，审计字段 demo=true。这批历史数据用于 API 展示及规则测试，不代表当前 v7 结果；真实模型联调可使用 DEMO-P006，或指定尚未预存的日期。
 
 例如查询 `GET /v1/patrons/DEMO-P001/fortunes/2026-11-19`，或运行以下命令测试真实 Qwen 生成及写回。
 
@@ -139,4 +139,6 @@ uv run --locked python -m app.seed --with-llm --date 2026-11-21
 
 上限 16 按单个批处理进程生效，多个独立进程或其他 vLLM 调用方的请求数量需要部署侧统一协调。--batch-size 控制每页 ID 数量，和并发上限分别控制。当前仍按 ID 读取 Patron，未在这次改动中增加批量资料读取或批量结果写入。
 
-当前幸运色固定为 Red、Blue、Purple、Green、Yellow、Gold、Silver、Orange、Brown、Pink。五行分组及日期轮换见 docs/RULES.md。历史成功记录保留原结果，新生成记录使用 daily-theme-v6 生扶规则。丙火日主遇当天木、火、土、金、水，分别推荐木、火、木、火、木。没有个人日主时使用当天五行。既有演示文稿保留旧版评分示例，当前规则以 docs/RULES.md 为准。
+当前幸运色固定为 Red、Blue、Purple、Green、Yellow、Gold、Silver、Orange、Brown、Pink。五行分组及日期轮换见 docs/RULES.md。历史成功记录保留原结果，新生成记录使用 daily-theme-v7。生扶表沿用 v6：丙火日主遇当天木、火、土、金、水，分别推荐木、火、木、火、木；没有个人日主时使用当天五行。
+
+v7 生肖以个人年、月、日、时支的六合生肖为候选，合并去重，排除当天六冲；候选全部被排除时扩展个人三合组伙伴。与当天六合或同属三合组的候选同等优先，并列或没有当天相合关系时按日期轮换。未知时支跳过；没有个人地支时使用当天六合。选择依据作为 zodiac_decision 传给 Qwen 并持久化到审计。生肖仍完全由规则生成，每位客人仍只有两次 Qwen 调用，REST 响应格式不变。既有演示文稿保留旧版评分示例，当前规则以 docs/RULES.md 为准。

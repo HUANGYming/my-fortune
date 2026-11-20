@@ -2,7 +2,7 @@
 from datetime import date
 from app.models import CatalogEntry
 
-RULES_VERSION = "daily-theme-v6"
+RULES_VERSION = "daily-theme-v7"
 ELEMENTS = ("wood", "fire", "earth", "metal", "water")
 STEM_ELEMENTS = dict(zip("甲乙丙丁戊己庚辛壬癸", (
     "wood", "wood", "fire", "fire", "earth", "earth", "metal", "metal", "water", "water")))
@@ -56,16 +56,6 @@ def daily_element_decision(facts: dict) -> dict:
         "day_element": daily, "relationship": relationship,
         "element": element, "reason": reason,
     }
-
-
-def relation_score(candidate: str, branch: str) -> int:
-    if candidate != branch and any(candidate in pair and branch in pair for pair in CLASHES):
-        return -4
-    if candidate != branch and any(candidate in pair and branch in pair for pair in COMBINES):
-        return 3
-    if candidate != branch and any(candidate in group and branch in group for group in TRINES):
-        return 2
-    return 0
 
 
 def rank_catalog(context: dict, catalog: list[CatalogEntry], kind: str) -> list[tuple[int, CatalogEntry]]:
