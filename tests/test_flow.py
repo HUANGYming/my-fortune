@@ -52,7 +52,7 @@ def test_generation_persists_all_five_and_rerun_skips_model():
     result = asyncio.run(generator.generate(patron, target))
     assert result.lucky_number in (3, 8)
     assert result.lucky_zodiac.value != 'Monkey'
-    assert result.lucky_color.name in ('Green', 'Jade')
+    assert result.lucky_color.name in ('Green',)
     assert result.lucky_item.id == 'item'
     assert result.lucky_dining.id == 'dining'
     generator.llm.generate = AsyncMock(side_effect=AssertionError('Must read persisted result'))
@@ -98,7 +98,7 @@ def test_actual_taibu_through_generation_to_persisted_query():
                     birth_timezone='Asia/Shanghai', gender='male')
     result = asyncio.run(generator.generate(patron, date(2026, 11, 20)))
     assert result.personalization == 'four_pillars'
-    assert result.rules_version == 'daily-theme-v4'
+    assert result.rules_version == 'daily-theme-v5'
     assert result.lucky_number in (5, 0)
     assert repo.writes == 1
     app.dependency_overrides[authorize] = lambda: None

@@ -1,6 +1,6 @@
 # My Fortune 第一版推荐规则
 
-规则版本 `daily-theme-v4`，提示词版本 `fortune-v5`。
+规则版本 `daily-theme-v5`，提示词版本 `fortune-v5`。
 
 此版本是可执行的娱乐内容方法，分数和映射由本项目定义。它采用明确的干支关系及五行主题，不执行完整旺衰、格局、调候或喜用神推断。出生资料相同可以得到相同推荐；不追求人与人之间绝对唯一。
 
@@ -51,13 +51,15 @@ Python 实现参照 taibu-core 4.1.0 的公农历、节气、时区、四柱、�
 
 | 五行 | 颜色 |
 | --- | --- |
-| 木 | Green、Jade |
-| 火 | Red、Purple |
+| 木 | Green |
+| 火 | Red、Purple、Orange、Pink |
 | 土 | Yellow、Brown |
-| 金 | Gold、White |
-| 水 | Blue、Black |
+| 金 | Gold、Silver |
+| 水 | Blue |
 
-根据选定五行取得两个主题色，再按日期序数轮换。颜色只依赖日运五行和目标日期。色值在 lucky_color.py 中固定。
+以上分组为产品配置，使用 Red、Blue、Purple、Green、Yellow、Gold、Silver、Orange、Brown、Pink 共 10 种颜色。
+
+根据选定五行取得对应颜色组，再按日期序数对组内数量取余进行轮换。木、水各一个颜色，固定返回；火有四种，按四天轮换；土、金各两种，按日期奇偶轮换。颜色只依赖日运五行和目标日期。色值在 lucky_color.py 中固定。
 
 ## 今日物品与餐厅
 

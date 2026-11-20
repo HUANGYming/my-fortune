@@ -2,11 +2,12 @@ from datetime import date
 from app.models import Color
 
 PALETTES = {
-    "wood": (("Green", "#228B22"), ("Jade", "#00A86B")),
-    "fire": (("Red", "#C62828"), ("Purple", "#7B1FA2")),
+    "wood": (("Green", "#228B22"),),
+    "fire": (("Red", "#C62828"), ("Purple", "#7B1FA2"),
+             ("Orange", "#FF9800"), ("Pink", "#E91E63")),
     "earth": (("Yellow", "#FBC02D"), ("Brown", "#795548")),
-    "metal": (("Gold", "#D4AF37"), ("White", "#FFFFFF")),
-    "water": (("Blue", "#1565C0"), ("Black", "#212121")),
+    "metal": (("Gold", "#D4AF37"), ("Silver", "#C0C0C0")),
+    "water": (("Blue", "#1565C0"),),
 }
 
 

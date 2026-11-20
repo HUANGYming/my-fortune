@@ -24,7 +24,7 @@ def test_theme_candidates_use_daily_and_personal_stems():
 def test_fields_share_element_and_avoid_daily_clash():
     data = context()
     assert lucky_number.generate(data) in (4, 9)
-    assert lucky_color.generate(data).name in ('Gold', 'White')
+    assert lucky_color.generate(data).name in ('Gold', 'Silver')
     assert lucky_zodiac.generate(data).value != 'Monkey'
     assert lucky_zodiac.generate(data) == lucky_zodiac.generate(data)
 
@@ -44,7 +44,7 @@ def test_color_uses_theme_and_date_independently_of_legacy_preferences():
     data = context()
     expected = lucky_color.generate(data)
     data['profile']['preferences'] = {'preferred_colors': [
-        'White' if expected.name == 'Gold' else 'Gold'
+        'Silver' if expected.name == 'Gold' else 'Gold'
     ]}
     assert lucky_color.generate(data) == expected
     del data['profile']
@@ -62,3 +62,21 @@ def test_rule_element_uses_highest_score_and_rotates_ties():
     assert select_daily_element(tied,date(2026,11,20)) == first
     with pytest.raises(ValueError):
         select_daily_element([],date(2026,11,20))
+
+
+def test_color_palette_uses_exactly_the_ten_product_colors():
+    from datetime import timedelta
+    from app.recommendations.lucky_color import PALETTES
+    expected = {'Red','Blue','Purple','Green','Yellow','Gold','Silver','Orange','Brown','Pink'}
+    assert {name for palette in PALETTES.values() for name, _ in palette} == expected
+    assert sum(len(palette) for palette in PALETTES.values()) == 10
+    seen = set()
+    for element, palette in PALETTES.items():
+        for offset in range(len(palette)):
+            data = context()
+            data['daily_reading']['element'] = element
+            data['date'] = (date(2026,11,20) + timedelta(days=offset)).isoformat()
+            color = lucky_color.generate(data)
+            seen.add(color.name)
+            assert color == lucky_color.generate(data)
+    assert seen == expected

@@ -3,7 +3,7 @@ from datetime import date
 from typing import Literal
 from app.models import CatalogEntry
 
-RULES_VERSION = "daily-theme-v4"
+RULES_VERSION = "daily-theme-v5"
 Element = Literal["wood", "fire", "earth", "metal", "water"]
 ELEMENTS = ("wood", "fire", "earth", "metal", "water")
 STEM_ELEMENTS = dict(zip("甲乙丙丁戊己庚辛壬癸", (
