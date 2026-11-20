@@ -7,13 +7,13 @@ from app.config import Settings
 from app.main import app, authorize, repository
 from app.models import CatalogEntry, Patron
 from app.service import FortuneService
-from app.rules import DailyReading
 
 
 class MemoryRepository:
     def __init__(self):
         self.saved = None
         self.writes = 0
+        self.audit = None
 
     def get_fortune(self, patron_id, target_date):
         return self.saved
@@ -23,6 +23,7 @@ class MemoryRepository:
 
     def save(self, fortune, audit):
         self.saved = fortune
+        self.audit = audit
         self.writes += 1
 
 
@@ -30,8 +31,7 @@ class FakeLLM:
     async def generate(self, task, context, schema):
         if 'entry_id' in schema.model_fields:
             return schema(entry_id=context['candidates'][0]['id'], reason='Matches supplied daily theme')
-        return schema(element=context['theme_candidates'][0]['element'],
-                      theme='Calm', basis=['Daily almanac'])
+        raise AssertionError('Only item and dining may call the model')
 
 
 def service(repo):
@@ -98,7 +98,7 @@ def test_actual_taibu_through_generation_to_persisted_query():
                     birth_timezone='Asia/Shanghai', gender='male')
     result = asyncio.run(generator.generate(patron, date(2026, 11, 20)))
     assert result.personalization == 'four_pillars'
-    assert result.rules_version == 'daily-theme-v3'
+    assert result.rules_version == 'daily-theme-v4'
     assert result.lucky_number in (5, 0)
     assert repo.writes == 1
     app.dependency_overrides[authorize] = lambda: None
@@ -112,10 +112,15 @@ def test_actual_taibu_through_generation_to_persisted_query():
         app.dependency_overrides.clear()
 
 
-def test_out_of_rule_model_choice_is_not_published():
+def test_only_item_and_dining_call_qwen():
     repo = MemoryRepository()
     generator = service(repo)
-    generator.llm.generate = AsyncMock(return_value=DailyReading(element='metal', theme='Invalid candidate', basis=['test']))
-    with pytest.raises(ValueError, match='outside the rule candidates'):
-        asyncio.run(generator.generate(Patron(patron_id='P001'), date(2026, 11, 20)))
-    assert repo.writes == 0
+    original = generator.llm.generate
+    generator.llm.generate = AsyncMock(side_effect=original)
+    asyncio.run(generator.generate(Patron(patron_id='P001'), date(2026,11,20)))
+    calls = generator.llm.generate.await_args_list
+    assert len(calls) == 2
+    assert 'Choose one item' in calls[0].args[0]
+    assert 'Choose one dining' in calls[1].args[0]
+    assert calls[0].args[1]['daily_reading'] == {'element':'wood'}
+    assert repo.audit['reading'] == {'element':'wood'}

@@ -4,7 +4,7 @@ from app.llm import QwenClient
 from app.models import Fortune, Patron
 from app.repository import Repository
 from app.taibu import TaibuClient
-from app.rules import DailyReading, RULES_VERSION, theme_candidates
+from app.rules import RULES_VERSION, theme_candidates, select_daily_element
 from app.recommendations import lucky_zodiac, lucky_number, lucky_color, lucky_item, lucky_dining
 
 
@@ -36,21 +36,14 @@ class FortuneService:
         profile = patron.model_dump(mode="json", exclude={"patron_id"})
         context = {"date": target_date.isoformat(), "profile": profile, "facts": facts}
 
-        # 第 5 步：按日干五行、日主五行及生扶五行构造候选，再让 Qwen 生成日运。
-        # DailyReading 包含 element（主题五行）、theme（主题文字）、basis（判断依据）。
+        # 第 5 步：按日干五行 +2、日主五行 +2、生扶日主的五行 +1 计算候选得分。
+        # 评分和后续选择均使用固定规则。
         context["theme_candidates"] = theme_candidates(facts)
-        reading = await self.llm.generate(
-            "Select one element from theme_candidates after considering personal day-master, "
-            "daily almanac, and the supplied natal/day relation facts. Scores are editorial "
-            "support weights, not classical strength or useful-god conclusions. "
-            "Use only supplied facts for basis. Return a concise daily theme.", context, DailyReading,
-        )
 
-        # 第 6 步：校验 Qwen 选择的五行属于规则候选，随后加入共享上下文。
-        # DailyReading 的结构及字段格式由 QwenClient 内的 Pydantic 校验。
-        if reading.element not in {candidate["element"] for candidate in context["theme_candidates"]}:
-            raise ValueError("Qwen selected an element outside the rule candidates")
-        context["daily_reading"] = reading.model_dump()
+        # 第 6 步：选择得分最高的五行；平分时按目标日期轮换。
+        # daily_reading 只保留 element，数字、颜色及目录评分共用该结果。
+        element = select_daily_element(context["theme_candidates"], target_date)
+        context["daily_reading"] = {"element": element}
 
         # 第 7 步：按地支关系选择生肖，按日运五行与日期选择数字及颜色。
         # 将幸运色加入 context，供后续物品和餐厅的目录评分使用。
@@ -74,7 +67,7 @@ class FortuneService:
             model=self.settings.qwen_model, prompt_version=self.settings.prompt_version,
             rules_version=RULES_VERSION, personalization=facts["personalization"],
         )
-        self.repository.save(fortune, {"facts": facts, "reading": reading.model_dump(), "rules_version": RULES_VERSION,
+        self.repository.save(fortune, {"facts": facts, "reading": {"element": element}, "rules_version": RULES_VERSION,
                                      "theme_candidates": context["theme_candidates"],
                                      "catalog_decisions": context["catalog_decisions"]})
 

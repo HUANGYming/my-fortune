@@ -4,7 +4,7 @@
 
 My Fortune 为 Patron 按澳门日期预计算五项个人推荐，并持久化至 Yellowbrick。前端 REST 请求读取已发布记录。后端使用 Python + FastAPI，Qwen 由内网 vLLM 提供。五项推荐保持五个独立文件，方便团队并行完善。
 
-生肖、数字、颜色采用本项目第一版规则。Qwen 分别生成个人日运、选择物品、选择餐厅，每人共三次调用。物品及餐厅先经过程序过滤，模型从最多 20 个合格候选中选择，选择理由存入 audit_json.catalog_decisions。
+生肖、数字、颜色采用本项目第一版规则。个人日运五行按固定规则产生，仅保存 element。Qwen 分别选择物品和餐厅，每人共两次调用。物品及餐厅先经过程序过滤，模型从最多 20 个合格候选中选择，选择理由存入 audit_json.catalog_decisions。
 
 ## 当前完成情况
 
@@ -13,7 +13,7 @@ My Fortune 为 Patron 按澳门日期预计算五项个人推荐，并持久化�
 - 提供预计算 CLI、Yellowbrick 访问层、事务发布、REST 查询和 OpenAPI。
 - 提供 6 位虚构 Patron、12 项目录及两天 10 份预存结果。
 - 提供 --with-llm 测试数据入口。没有在仓库保存真实凭据、Patron 或餐厅记录。
-- 当前 39 项本地测试通过，其中真实太卜计算已执行，Qwen 和数据库调用采用测试替身。
+- 当前 40 项本地测试通过，其中真实太卜计算已执行，Qwen 和数据库调用采用测试替身。
 
 真实 Yellowbrick 和 Qwen 地址尚未提供，未做生产环境联调或部署。My Fortune 当前实现业务需要的八字、黄历及干支关系，范围见 docs/PYTHON_MIGRATION.md。
 
@@ -23,7 +23,7 @@ My Fortune 为 Patron 按澳门日期预计算五项个人推荐，并持久化�
 2. 创建本地 .env，配置 DATABASE_DSN、API_KEY、QWEN_BASE_URL、QWEN_MODEL 和需要的 QWEN_API_KEY。QWEN_BASE_URL 包含 /v1，客户端会追加 /chat/completions。数据库连接使用实际 TLS 参数。
 3. 确认 Yellowbrick 版本。核对 sql/001_schema.sql 的类型、长度及 schema，再在测试环境应用。已有旧版表的环境使用 002 增量脚本，勿再次执行 001。确认 repository.py 的 LOCK TABLE ... IN EXCLUSIVE MODE 在该版本有效，执行两个并发写入和回滚测试。若不支持，依据实际数据库能力替换发布并发控制。
 4. 将 fortune_patron_source 映射到现有 Patron 数据。确认生日为公历，以及出生时区、小时、分钟、性别字段含义。缺出生时区会得到 general；时辰未知时保留三柱。不要把所有人的出生时区设为澳门。
-5. 配置 Qwen chat template 与 reasoning parser，验证返回的 message.content 为符合 schema 的 JSON。先用单一 Patron 检查三次模型调用、候选 ID 校验与数据库写入。若模型会输出 Markdown 代码围栏或额外解释，在模型调用层适配结构化输出，并添加对应回归测试。
+5. 配置 Qwen chat template 与 reasoning parser，验证返回的 message.content 为符合 schema 的 JSON。先用单一 Patron 检查两次模型调用、候选 ID 校验与数据库写入。若模型会输出 Markdown 代码围栏或额外解释，在模型调用层适配结构化输出，并添加对应回归测试。
 6. 用以下命令导入输入并通过真实模型生成，选用尚未保存的日期。
 
 ```sh
@@ -38,7 +38,7 @@ uv run --locked python -m app.precalculate --date 2026-11-20
 
 固定 SQL 结果 model=fixture-no-llm，不能当作真实 Qwen 测试证明。重复执行会复用已有结果，选择新的日期可再次触发模型。
 
-第一阶段验收应有一位客人的真实太卜结果、三次真实 Qwen 调用、完整数据库记录及 REST 响应。重跑时结果相同、没有重复行。模型失败时没有部分 Fortune，已有成功记录保留。全表分页、失败后继续和非法目录 ID 测试均通过。
+第一阶段验收应有一位客人的真实太卜结果、两次真实 Qwen 调用、完整数据库记录及 REST 响应。重跑时结果相同、没有重复行。模型失败时没有部分 Fortune，已有成功记录保留。全表分页、失败后继续和非法目录 ID 测试均通过。
 
 ## 第二阶段 · 数据与规则完善
 
@@ -52,7 +52,7 @@ uv run --locked python -m app.precalculate --date 2026-11-20
 
 - 当前 CLI 默认按澳门当天日期对 fortune_patron_source 全表计算，以 Patron ID 分页读取，每页默认 500 位，逐位串行处理。继续完善持久化任务状态、失败明细和监控。个人命盘维持每次计算的实现。
 - 按澳门日期提前生成次日结果，接入团队调度器。明确截止时间、数据更新策略和失败告警。
-- 测量三次模型调用的吞吐、延迟及上下文长度，依据 vLLM 容量设置有界并发，避免一次性创建全部请求。
+- 测量两次模型调用的吞吐、延迟及上下文长度，依据 vLLM 容量设置有界并发，避免一次性创建全部请求。
 - 查询接口目前使用内部 X-API-Key，可访问任意 Patron。对接网关身份认证与客人范围授权，补 readiness、请求追踪和团队日志规范。
 - 当前表结构使用 VARCHAR(64000) 存储结果及审计 JSON。评估真实长命盘、字符编码、字段大小及保留周期。大型 Patron 数据量下评估 Yellowbrick 分布方式、查询速度与发布锁竞争。
 - 确定部署方式后再补容器、进程管理和发布配置。当前仓库没有部署流水线。

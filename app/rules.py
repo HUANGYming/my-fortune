@@ -1,25 +1,21 @@
 """Versioned editorial rules for daily entertainment recommendations."""
 from datetime import date
 from typing import Literal
-from pydantic import Field
-from app.models import CatalogEntry, StrictModel
+from app.models import CatalogEntry
 
-RULES_VERSION = "daily-theme-v3"
+RULES_VERSION = "daily-theme-v4"
 Element = Literal["wood", "fire", "earth", "metal", "water"]
 ELEMENTS = ("wood", "fire", "earth", "metal", "water")
 STEM_ELEMENTS = dict(zip("甲乙丙丁戊己庚辛壬癸", (
     "wood", "wood", "fire", "fire", "earth", "earth", "metal", "metal", "water", "water")))
+# 相生关系：木生火、火生土、土生金、金生水、水生木。
+GENERATES = dict(zip(ELEMENTS, ("fire", "earth", "metal", "water", "wood")))
+GENERATED_BY = {child: parent for parent, child in GENERATES.items()}
 BRANCHES = "子丑寅卯辰巳午未申酉戌亥"
 ZODIACS = ("Rat", "Ox", "Tiger", "Rabbit", "Dragon", "Snake", "Horse", "Goat", "Monkey", "Rooster", "Dog", "Pig")
 COMBINES = ("子丑", "寅亥", "卯戌", "辰酉", "巳申", "午未")
 TRINES = ("申子辰", "亥卯未", "寅午戌", "巳酉丑")
 CLASHES = ("子午", "丑未", "寅申", "卯酉", "辰戌", "巳亥")
-
-
-class DailyReading(StrictModel):
-    element: Element
-    theme: str = Field(min_length=1, max_length=500)
-    basis: list[str] = Field(min_length=1, max_length=10)
 
 
 def theme_candidates(facts: dict) -> list[dict]:
@@ -31,10 +27,19 @@ def theme_candidates(facts: dict) -> list[dict]:
     if master:
         personal = STEM_ELEMENTS[master]
         scores[personal] += 2
-        # Generating predecessor supports the day-master in this editorial method.
-        scores[ELEMENTS[(ELEMENTS.index(personal) - 1) % 5]] += 1
+        # 给生扶日主的五行加分，例如日主属火时，木加 1 分。
+        scores[GENERATED_BY[personal]] += 1
     ordered = sorted(ELEMENTS, key=lambda element: (-scores[element], ELEMENTS.index(element)))
     return [{"element": element, "score": scores[element]} for element in ordered if scores[element] > 0]
+
+
+def select_daily_element(candidates: list[dict], target_date: date) -> Element:
+    """Choose the highest score; rotate equal scores using the Macau target date."""
+    if not candidates:
+        raise ValueError("Daily element requires scored candidates")
+    best_score = max(candidate["score"] for candidate in candidates)
+    tied = [candidate["element"] for candidate in candidates if candidate["score"] == best_score]
+    return tied[target_date.toordinal() % len(tied)]
 
 
 def relation_score(candidate: str, branch: str) -> int:

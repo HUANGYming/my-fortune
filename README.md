@@ -1,6 +1,6 @@
 # My Fortune
 
-团队接手与下一步实施顺序见 [On-premise agent 接手说明](docs/HANDOFF.md)。
+团队接手与下一步实施顺序见 [On-premise agent 接手说明](docs/HANDOFF.md)。五项推荐流程见 [英文演示文稿](docs/presentations/My_Fortune_Rule_Based_Pipelines_v2.pptx)。
 
 Python + FastAPI 后端，澳门日期驱动预计算，五项完整生成后持久化至 Yellowbrick，REST API 查询已有结果。
 
@@ -10,7 +10,7 @@ Python + FastAPI 后端，澳门日期驱动预计算，五项完整生成后持
 | --- | --- |
 | app/main.py | REST 查询与 OpenAPI |
 | app/precalculate.py | 全表每日预计算入口，支持指定日期 |
-| app/service.py | 排盘、Qwen 日运、五项推荐、发布 |
+| app/service.py | 排盘、规则五行、五项推荐、发布 |
 | app/recommendations/ | 生肖、数字、颜色、物品、餐厅五个独立文件 |
 | app/rules.py | 主题候选、关系评分、目录筛选与排名 |
 | app/llm.py | on-premises Qwen / vLLM 客户端 |
@@ -54,7 +54,7 @@ uv run --locked python -m app.precalculate --date 2026-11-20
 
 从 fortune_patron_source 分页读取全部不同的 Patron ID，默认每页 500 位，可用 --batch-size 调整。省略 --date 时使用澳门当天日期。逐位计算并持久化，同一天已成功结果复用，失败继续处理下一位。失败返回非零退出码，重跑补算缺失记录。任务状态表、分布式队列尚待扩展。
 
-真实太卜计算 → Qwen 日运主题判断 → 生肖/数字/颜色规则 → Qwen 物品及餐厅选择 → 完整保存。
+Python 排盘与黄历计算，规则确定每日五行并生成生肖、数字、颜色，Qwen 选择物品及餐厅，最后完整保存。
 
 payload 保存五项展示内容、模型/提示词/规则版本和 personalization（general、three_pillars、four_pillars）。audit_json 保存原始计算结果与日运依据。使用 VARCHAR 保存 JSON，避免依赖 JSONB 或 ON CONFLICT。
 
@@ -70,7 +70,7 @@ payload 保存五项展示内容、模型/提示词/规则版本和 personalizat
 
 ## Qwen 接入
 
-app/llm.py 调用 /v1/chat/completions，每人三次调用，分别选择日运主题、物品、餐厅。物品和餐厅先由程序筛选，再把排名前 20 个合格候选交给 Qwen，模型可以综合日运与目录标签选择其中任意一个。输出 ID 再次校验，理由保存在 audit_json.catalog_decisions。JSON 由 Pydantic 校验，超时和临时错误有限重试，非法结果使本次任务失败。Qwen 的 chat template / reasoning parser 需确保 content 返回纯 JSON。没有配置外部模型回退。
+app/llm.py 调用 /v1/chat/completions，每人两次调用，分别选择物品和餐厅。日运五行由 rules.py 按固定分数选出，日运数据只保留 element。物品和餐厅先由程序筛选，再把排名前 20 个合格候选交给 Qwen，模型可以综合日运与目录标签选择其中任意一个。输出 ID 再次校验，理由保存在 audit_json.catalog_decisions。JSON 由 Pydantic 校验，超时和临时错误有限重试，非法结果使本次任务失败。Qwen 的 chat template / reasoning parser 需确保 content 返回纯 JSON。没有配置外部模型回退。
 
 ## 测试与接入状态
 

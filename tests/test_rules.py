@@ -1,6 +1,7 @@
 import pytest
 from app.models import CatalogEntry
-from app.rules import select_catalog, theme_candidates
+from app.rules import select_catalog, theme_candidates, select_daily_element
+from datetime import date
 from app.recommendations import lucky_color, lucky_number, lucky_zodiac
 
 
@@ -48,3 +49,16 @@ def test_color_uses_theme_and_date_independently_of_legacy_preferences():
     assert lucky_color.generate(data) == expected
     del data['profile']
     assert lucky_color.generate(data) == expected
+
+
+def test_rule_element_uses_highest_score_and_rotates_ties():
+    facts = {'coordinates': {'day_stem':'戊', 'day_master':'庚'}}
+    candidates = theme_candidates(facts)
+    assert select_daily_element(candidates,date(2026,11,20)) == 'earth'
+    tied = theme_candidates({'coordinates':{'day_stem':'戊','day_master':'丁'}})
+    first = select_daily_element(tied,date(2026,11,20))
+    second = select_daily_element(tied,date(2026,11,21))
+    assert {first,second} == {'fire','earth'}
+    assert select_daily_element(tied,date(2026,11,20)) == first
+    with pytest.raises(ValueError):
+        select_daily_element([],date(2026,11,20))
